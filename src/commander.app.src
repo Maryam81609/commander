@@ -1,0 +1,17 @@
+{application, commander,
+ [{description, "Systematic Testing for Antidote Applications"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, { commander_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    lager
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, []},
+  {licenses, []},
+  {links, []}
+ ]}.

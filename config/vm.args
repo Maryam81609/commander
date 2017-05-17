@@ -1,6 +1,6 @@
--sname commander
+-name 'commander@127.0.0.1'
 
--setcookie commander_cookie
+-setcookie antidote
 
 +K true
 +A30
