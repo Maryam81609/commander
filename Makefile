@@ -19,7 +19,7 @@ relclean:
 
 
 console: rel
-	./_build/default/rel/antidote/bin/env console
+	./_build/default/rel/commander/bin/commander console
 
 
 systests: rel
