@@ -1,11 +1,14 @@
 -include("antidote.hrl").
 -include("inter_dc_repl.hrl").
+
+-define(DEBUG, true).
+
 -define(DEV(N), list_to_atom(lists:concat(["dev", N, "@127.0.0.1"]))).
 %%-define(NODES_PATH, (comm_config:fetch(cluster_path))).
 -define(COOKIE, antidote).
 -define(COMMANDER, 'commander@127.0.0.1').
 -define(ANTIDOTE, 'antidote@127.0.0.1').
--define(DEBUG, true).
+%-define(DEBUG, true).
 
 -type dc() :: [node()].
 

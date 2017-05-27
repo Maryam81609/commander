@@ -199,7 +199,8 @@ start_node(Name, Config) ->
             ok = rpc:call(Node, application, set_env, [riak_core, platform_data_dir, PlatformDir]),
             ok = rpc:call(Node, application, set_env, [riak_core, handoff_port, web_ports(Name) + 3]),
 
-            ok = rpc:call(Node, application, set_env, [riak_core, schema_dirs, ["../../_build/default/rel/antidote/lib/"]]),
+            %% ["../../_build/default/rel/antidote/lib/"]
+            ok = rpc:call(Node, application, set_env, [riak_core, schema_dirs, ["../../_build/default/lib/riak_core/priv/"]]),
 
             ok = rpc:call(Node, application, set_env, [riak_api, pb_port, web_ports(Name) + 2]),
             ok = rpc:call(Node, application, set_env, [riak_api, pb_ip, "127.0.0.1"]),

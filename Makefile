@@ -21,13 +21,9 @@ relclean:
 console: rel
 	./_build/default/rel/commander/bin/commander console
 
-
-systests: rel
+run-test: rel
 	rm -f test/*.beam
+	rm -f comm_tests/*.beam
+	erlc -o comm_tests/ comm_tests/$(TEST)_comm.erl
 	mkdir -p logs
-
-ifdef SUITE
-	ct_run -pa ./_build/default/lib/*/ebin -logdir logs -suite test/${SUITE}
-else
-	ct_run -pa ./_build/default/lib/*/ebin -logdir logs -dir test
-endif
+	ct_run -pa ./_build/default/lib/*/ebin -logdir logs -suite test/commander_SUITE.er
