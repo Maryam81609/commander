@@ -138,8 +138,8 @@ dc3_txns(Node, Wallet, ST) ->
 handle_event([1, Node, ST, AppArgs]) ->
     [Wallet, N] = AppArgs,
     {Res1, {_Tx1, CT1}} = wallet:debit(Node, Wallet, N, ST),
-    {Key, Type, bucket} = Wallet,
-    {ok, Res} = rpc:call(Node, antidote, read, [Key, Type]),
+%%    {Key, Type, bucket} = Wallet,
+    {ok, [Res], _CT} = rpc:call(Node, antidote, read_objects, [ignore, [], [Wallet]]),
 
     if
         ?DEBUG ->
@@ -156,8 +156,8 @@ handle_event([1, Node, ST, AppArgs]) ->
 handle_event([2, Node, ST, AppArgs]) ->
     [Wallet, N] = AppArgs,
     {Res2, {_Tx2, CT2}} = wallet:credit(Node, Wallet, N, ST),
-    {Key, Type, bucket} = Wallet,
-    {ok, Res} = rpc:call(Node, antidote, read, [Key, Type]),
+%%    {_Key, _Type, bucket} = Wallet,
+    {ok, [Res], _CT} = rpc:call(Node, antidote, read_objects, [ignore, [], [Wallet]]),
 
     if
         ?DEBUG ->

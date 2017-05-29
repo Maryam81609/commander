@@ -21,10 +21,10 @@
     end_per_suite/1,
     all/0]).
 
-%%-export([
-%%    comm_check/1]).
+-export([
+    comm_check/1]).
 
-all() -> []. %%[comm_check].
+all() -> [comm_check].
 
 init_per_suite(Config) ->
     test_utils:at_init_testsuite(),
@@ -92,7 +92,7 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     Config.
 
-%%comm_check(Config) ->
-%%    TestName = proplists:get_value(test_name, Config),
-%%    TestModule = list_to_atom(TestName ++ "_comm"),
-%%    TestModule:check(Config).
+comm_check(Config) ->
+    TestName = proplists:get_value(test_name, Config),
+    TestModule = list_to_atom(TestName ++ "_comm"),
+    TestModule:check(Config).
