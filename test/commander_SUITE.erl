@@ -14,6 +14,7 @@
 -include_lib("common_test/include/ct.hrl").
 
 -define(DEBUG, true).
+-define(DEBUG_LOG(Arg), if ?DEBUG -> ct:print(Arg) end).
 
 %% common_test callbacks
 -export([
@@ -31,10 +32,7 @@ init_per_suite(Config) ->
     Clusters = test_utils:set_up_clusters_common(Config),
     Nodes = lists:flatten(Clusters),
 
-    if
-        ?DEBUG -> ct:print("Clusters: ~p", [Clusters]);
-        true -> skip
-    end,
+    ?DEBUG_LOG(io_lib:format("Clusters: ~p", [Clusters])),
 
     %%% Ensure that the clocksi protocol is used
     test_utils:pmap(fun(Node) ->
@@ -46,10 +44,7 @@ init_per_suite(Config) ->
 
     {ok, _} = application:ensure_all_started(commander),
 
-    if
-        ?DEBUG ->
-            ct:print("Passed nodes initialization!")
-    end,
+    ?DEBUG_LOG("Passed nodes initialization!"),
 
     Scheduler = os:getenv("SCHEDULER"),
     SchParam = os:getenv("SCHPARAM"),
@@ -59,35 +54,27 @@ init_per_suite(Config) ->
     SUTPath = os:getenv("SUTPATH"),
     TestName = os:getenv("TEST"),
 
-    if
-        ?DEBUG ->
-            ct:print("Read application env vars!"),
-            ct:print("SUT path: ~p", [SUTPath]),
-            ct:print("Test path: ~p", [TestPath]),
-            ct:print("Scheduler: ~p", [Scheduler]),
-            ct:print("SchParam: ~p", [SchParam])
-    end,
+    ?DEBUG_LOG("Read application env vars!"),
+    ?DEBUG_LOG(io_lib:format("SUT path: ~p", [SUTPath])),
+    ?DEBUG_LOG(io_lib:format("Test path: ~p", [TestPath])),
+    ?DEBUG_LOG(io_lib:format("Scheduler: ~p", [Scheduler])),
+    ?DEBUG_LOG(io_lib:format("SchParam: ~p", [SchParam])),
 
     SUTPathAsList = string:tokens(SUTPath, "\/"),
     SUTName = lists:last(SUTPathAsList),
     SUTFullPath = filename:join([SUTPath, "_build", "default/lib", SUTName, "ebin"]),
 
-    if
-        ?DEBUG ->
-            ct:print("before adding to code path!"),
-            ct:print("Test path: ~p", [TestPath]),
-            ct:print("SUT path: ~p", [SUTFullPath])
-    end,
+    ?DEBUG_LOG("before adding to code path!"),
+    ?DEBUG_LOG(io_lib:format("Test path: ~p", [TestPath])),
+    ?DEBUG_LOG(io_lib:format("SUT path: ~p", [SUTFullPath])),
 
     %%% Add the test and SUT dirs to the code path
     true = code:add_path(SUTFullPath),
     true = code:add_path(TestPath),
 
-    if
-        ?DEBUG -> ct:print("Added to code path!")
-    end,
+    ?DEBUG_LOG("Added to code path!"),
 
-    [{test_name, TestName}, {sch_param, SchParam}, {scheduler, Scheduler}, {clusters, Clusters}|Config]. %%
+    [{test_name, TestName}, {sch_param, SchParam}, {scheduler, Scheduler}, {clusters, Clusters}|Config].
 
 end_per_suite(Config) ->
     Config.
