@@ -26,4 +26,4 @@ run-test: rel
 	rm -f comm_tests/*.beam
 	erlc -o comm_tests/ comm_tests/$(TEST)_comm.erl
 	mkdir -p logs
-	ct_run -pa ./_build/default/lib/*/ebin -logdir logs -suite test/commander_SUITE.er
+	ct_run -pa ./_build/default/lib/*/ebin -logdir logs -suite test/commander_SUITE.erl
