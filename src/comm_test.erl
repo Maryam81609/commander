@@ -1,6 +1,6 @@
 -module(comm_test).
 
--include("commander.hrl").
+-include("../include/commander.hrl").
 
 -export([event/2, objects/2]).
 
@@ -21,5 +21,5 @@ event(Module, Args) ->
 
 -spec(objects(Module :: atom(), Objs::list()) -> ok).
 objects(Module, Objs) ->
-    commander:get_app_objects(Module, Objs),
+    ok = commander:get_app_objects(Module, Objs),
     ok.

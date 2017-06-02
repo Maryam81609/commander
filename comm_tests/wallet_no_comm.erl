@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 25. May 2017 11:37 AM
 %%%-------------------------------------------------------------------
--module(wallet_comm).
+-module(wallet_no_comm).
 -author("maryam").
 
 -behavior(comm_test).
@@ -32,24 +32,24 @@ check(Config) ->
 main_test(Node1, Node2, Node3) ->
     Key = wallet_key,
     Wallet = {Key, antidote_crdt_counter, bucket},
+%%    Wallet = {Key, riak_dt_pncounter, bucket},
 
-    ?DEBUG_LOG(io_lib:format("~p", [node()])),
-
-    TestNode = list_to_atom(os:getenv("TESTNODE")),
-    true = rpc:call(TestNode, lists, member, [commander, erlang:registered()]),
-%%    true = lists:member(commander, erlang:registered()),
     %%% Specify invariant objects
     %%comm_test:objects(?MODULE, [Wallet]),
 
-    {_Re, CT} = comm_test:event(?MODULE, [2, Node1, ignore, [Wallet, 26500]]),
+    if
+        ?DEBUG -> ct:print("Node1: ~p", [Node1]);
+        true -> skip
+    end,
+
+    {_Re, CT} = handle_event([2, Node1, ignore, [Wallet, 26500]]),
 
     if
         ?DEBUG ->
             ct:print("~n^^^^^^^^^^CT: ~w^^^^^^^^^^^~n", [dict:to_list(CT)]);
         true -> skip
     end,
-    [?DEBUG_LOG(io_lib:format("Wallet Val on node: ~p ==> ~p", [Node, get_val(Node, Wallet, CT)]))
-        || Node <- [Node1, Node2, Node3]],
+
     [?assertEqual(get_val(Node, Wallet, CT), 26500) || Node <- [Node1, Node2, Node3]],
 
     CT1 = dc1_txns(Node1, Wallet, CT),
@@ -62,6 +62,9 @@ main_test(Node1, Node2, Node3) ->
 
     Vals = [get_val(Node, Wallet, Time) || Node <- [Node1, Node2, Node3]],
     ct:print("Vals: ~w", [Vals]),
+    Quiescence_val = lists:usort(Vals),
+    ?assertMatch(Quiescence_val, [23700]),
+    ct:print("Quiesence val: ~p", [Quiescence_val]),
 
     if
         ?DEBUG ->
@@ -71,7 +74,7 @@ main_test(Node1, Node2, Node3) ->
             %%  Quiescence_val = lists:usort(Vals),
             %%  ?assertMatch(Quiescence_val, [hd(Vals)]),
             ct:print("Cookie: ~p, Node: ~p", [erlang:get_cookie(), node()]),
-            ct:print("Self: ~p~n commander: ~p", [self(), whereis(commander)]);
+            ct:print("Self: ~p~n riak_test: ~p", [self(), whereis(riak_test)]);
         true -> skip
     end,
 
@@ -84,43 +87,49 @@ get_val(Node, Wallet, Clock) ->
     Res.
 
 dc1_txns(Node, Wallet, ST) ->
-    {_R1, _CT1} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 200]]),
-    {_R2, _CT2} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 300]]),
-    {_R3, _CT3} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 500]]),
-    {_R4, _CT4} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 100]]),
-    {_R5, _CT5} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1000]]),
-    {_R6, _CT6} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 400]]),
-    {_R7, _CT7} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 600]]),
-    {_R8, _CT8} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 800]]),
-    {_R9, _CT9} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 700]]),
-    {_R10, CT10} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1400]]),
-    CT10.
+    {_, CT} = handle_event([1, Node, ST, [Wallet, 200]]),
+    CT.
+%%    {_R1, _CT1} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 200]]),
+%%    {_R2, _CT2} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 300]]),
+%%    {_R3, _CT3} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 500]]),
+%%    {_R4, _CT4} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 100]]),
+%%    {_R5, _CT5} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1000]]),
+%%    {_R6, _CT6} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 400]]),
+%%    {_R7, _CT7} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 600]]),
+%%    {_R8, _CT8} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 800]]),
+%%    {_R9, _CT9} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 700]]),
+%%    {_R10, CT10} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1400]]),
+%%    CT10.
 
 dc2_txns(Node, Wallet, ST) ->
-    {_R1, _CT1} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 800]]),
-    {_R2, _CT2} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 500]]),
-    {_R3, _CT3} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 600]]),
-    {_R4, _CT4} = comm_test:event(?MODULE, [2, Node, ST, [Wallet, 5000]]),
-    {_R5, _CT5} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 900]]),
-    {_R6, _CT6} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1200]]),
-    {_R7, _CT7} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 2000]]),
-    {_R8, _CT8} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 800]]),
-    {_R9, _CT9} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 900]]),
-    {_R10, CT10} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1400]]),
-    CT10.
+    {_, CT} = handle_event([1, Node, ST, [Wallet, 800]]),
+    CT.
+%%    {_R1, _CT1} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 800]]),
+%%    {_R2, _CT2} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 500]]),
+%%    {_R3, _CT3} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 600]]),
+%%    {_R4, _CT4} = comm_test:event(?MODULE, [2, Node, ST, [Wallet, 5000]]),
+%%    {_R5, _CT5} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 900]]),
+%%    {_R6, _CT6} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1200]]),
+%%    {_R7, _CT7} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 2000]]),
+%%    {_R8, _CT8} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 800]]),
+%%    {_R9, _CT9} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 900]]),
+%%    {_R10, CT10} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1400]]),
+%%    CT10.
 
 
 dc3_txns(Node, Wallet, ST) ->
-    {_R1, _CT1} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1800]]),
-    {_R2, _CT2} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1000]]),
-    {_R3, _CT3} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1100]]),
-    {_R4, _CT4} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 900]]),
-    {_R5, _CT5} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1200]]),
-    {_R6, _CT6} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 2000]]),
-    {_R7, _CT7} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1300]]),
-    {_R8, _CT8} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 900]]),
-    {_R9, CT9} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1400]]),
-    CT9.
+    {_, CT} = handle_event([1, Node, ST, [Wallet, 1800]]),
+    CT.
+%%    {_R1, _CT1} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1800]]),
+%%    {_R2, _CT2} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1000]]),
+%%    {_R3, _CT3} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1100]]),
+%%    {_R4, _CT4} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 900]]),
+%%    {_R5, _CT5} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1200]]),
+%%    {_R6, _CT6} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 2000]]),
+%%    {_R7, _CT7} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1300]]),
+%%    {_R8, _CT8} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 900]]),
+%%    {_R9, CT9} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1400]]),
+%%    CT9.
 
 
 %%%====================================
@@ -129,6 +138,7 @@ dc3_txns(Node, Wallet, ST) ->
 handle_event([1, Node, ST, AppArgs]) ->
     [Wallet, N] = AppArgs,
     {Res1, {_Tx1, CT1}} = wallet:debit(Node, Wallet, N, ST),
+%%    {Key, Type, bucket} = Wallet,
     {ok, [Res], _CT} = rpc:call(Node, antidote, read_objects, [ignore, [], [Wallet]]),
 
     if
@@ -146,6 +156,7 @@ handle_event([1, Node, ST, AppArgs]) ->
 handle_event([2, Node, ST, AppArgs]) ->
     [Wallet, N] = AppArgs,
     {Res2, {_Tx2, CT2}} = wallet:credit(Node, Wallet, N, ST),
+%%    {_Key, _Type, bucket} = Wallet,
     {ok, [Res], _CT} = rpc:call(Node, antidote, read_objects, [ignore, [], [Wallet]]),
 
     if

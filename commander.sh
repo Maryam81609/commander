@@ -2,10 +2,9 @@
 
 set -e
 
-COMMDIR=`pwd -P`
-ANTIDOTEDIR=../antidote
 ARGCOUNT=$#
 
+export COMMDIR=`pwd -P`
 export SCHEDULER=$1
 export SCHPARAM=$2
 export TEST=$3
@@ -28,7 +27,7 @@ SCH_LONG=“comm_$SCHEDULER_scheduler”
 
 echo $SCH_LONG
 
-APPSCHDIR=schedules/$APP/$SCHEDULER
+APPSCHDIR=schedules/$TEST/$SCHEDULER
 
 if [ ! -d "$APPSCHDIR" ]; then
   mkdir -p $APPSCHDIR

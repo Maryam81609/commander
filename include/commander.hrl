@@ -2,6 +2,7 @@
 -include("inter_dc_repl.hrl").
 
 -define(DEBUG, true).
+-define(DEBUG_LOG(Arg), if ?DEBUG -> ct:print(Arg) end).
 
 -define(DEV(N), list_to_atom(lists:concat(["dev", N, "@127.0.0.1"]))).
 %%-define(NODES_PATH, (comm_config:fetch(cluster_path))).

@@ -1,12 +1,15 @@
 REBAR = $(shell pwd)/rebar3
 
-all: compile rel
+all: antidoteclean compile rel
 
 compile:
 	$(REBAR) compile
 
 rel:
 	$(REBAR) release
+
+allclean: clean relclean depclean
+	$(REBAR) clean --all
 
 distclean: clean relclean
 	$(REBAR) clean --all
@@ -17,6 +20,11 @@ clean:
 relclean:
 	rm -rf _build/default/rel
 
+depclean:
+	rm -rf _build/default/lib
+
+antidoteclean:
+	rm -rf _build/default/lib/antidote/ebin
 
 console: rel
 	./_build/default/rel/commander/bin/commander console
