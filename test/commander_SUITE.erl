@@ -77,15 +77,6 @@ init_per_suite(Config) ->
                 {DelayBound, _} = string:to_integer(SchParamStr),
                 DelayBound
         end,
-    DelayDirection = forward, %%backward,
-
-    {ok, _Pid} = commander:start_link(Scheduler, DelayDirection),
-    lager:info("Cammander started on: ~p", [node()]),
-    ?DEBUG_LOG(io_lib:format("~p", [node()])),
-    %%% Check if commander process is running
-    true = lists:member(commander, erlang:registered()),
-
-    ok = commander:set_test_node(node()),
 
     SUTPathAsList = string:tokens(SUTPath, "\/"),
     SUTName = lists:last(SUTPathAsList),

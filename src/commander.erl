@@ -7,8 +7,6 @@
 
 %% Public API
 -export([start_link/2,
-        set_test_node/1,
-        get_test_node/0,
         stop/0,
         update_upstream_event_data/1,
         get_upstream_event_data/1,
@@ -73,12 +71,6 @@ passed_test_count() ->
 
 get_app_objects(Mod, Objs) ->
   gen_server:call(?SERVER, {get_app_objects, {Mod, Objs}}).
-
-set_test_node(TestNode) ->
-    gen_server:call(?SERVER, {set_test_node, {TestNode}}).
-
-get_test_node() ->
-    gen_server:call(?SERVER, {get_test_node}).
 
 check(SchParam, Bound) ->
   gen_server:cast(?SERVER, {check, {SchParam, Bound}}).
@@ -239,15 +231,7 @@ handle_call({update_transactions_data, {TxId, InterDcTxn}}, _From, State) ->
                         io:format("~nTXN:~p not found in txnsData!~n", [TxId]),
                         State
                 end,
-    {reply, ok, NewState};
-
-handle_call({set_test_node, {TestNode}}, _From, State) ->
-    NewState = State#comm_state{test_node = TestNode},
-    {reply, ok, NewState};
-
-handle_call({get_test_node}, _From, State) ->
-    TestNode = State#comm_state.test_node,
-    {reply, TestNode, State}.
+    {reply, ok, NewState}.
 
 handle_cast({check,{SchParam, Bound}}, State) ->
   {execution, 1, OrigSch} = State#comm_state.initial_exec,
