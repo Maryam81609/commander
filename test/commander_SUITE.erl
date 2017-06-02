@@ -101,7 +101,7 @@ init_per_testcase(comm_check, Config) ->
     Scheduler = proplists:get_value(scheduler, Config),
     DelayDirection = forward,
     {ok, _Pid} = commander:start_link(Scheduler, DelayDirection),
-    lager:info("Cammander started on: ~p", [node()]),
+    ?DEBUG_LOG(io_lib:format("Cammander started on: ~p", [node()])),
     ?DEBUG_LOG(io_lib:format("~p", [node()])),
     Config.
 

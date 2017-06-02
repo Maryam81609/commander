@@ -4,6 +4,9 @@
 
 -compile(export_all).
 
+-undef(DEBUG).
+-define(DEBUG, false).
+
 get_home_dir() ->
     {ok, [[HomeDir]]} = init:get_argument(home),
     HomeDir.
@@ -20,7 +23,6 @@ get_exec_name(_ExecId) ->
 %%    FileName.
 
 get_full_name(RelPath, Phase) ->
-%%    RootDir = get_home_dir() ++ "/commander",
     SUTName = os:getenv("TEST"),
     ?DEBUG_LOG(io_lib:format("comm_utilities::SUTName: ~s", [SUTName])),
     CommDir = os:getenv("COMMDIR"),

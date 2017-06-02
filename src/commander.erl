@@ -97,7 +97,7 @@ stop() ->
 %%% Callbacks
 %%%====================================
 init([Scheduler, DelayDirection]) ->
-    lager:info("Commander started on: ~p", [node()]),
+    ct:print("Commander started on: ~p", [node()]),
     ExecId = 1,
     NewState = comm_recorder:init_record(ExecId, #comm_state{scheduler = Scheduler, delay_direction = DelayDirection}),
     {ok, NewState}.
@@ -215,7 +215,6 @@ handle_call({get_upstream_event_data, {Data}}, _From, State) ->
     NewUpstreamEvents = State#comm_state.upstream_events ++ [NewUpstreamEvent],
 
     NewState = State#comm_state{upstream_events = NewUpstreamEvents, dep_clock_prgm = NewDepClockPrgm},
-    ?DEBUG_LOG(io_lib:format("Commander:::::State after get upstream: ~p", [NewState])),
     {reply, ok, NewState};
 
 handle_call({update_transactions_data, {TxId, InterDcTxn}}, _From, State) ->
@@ -228,7 +227,7 @@ handle_call({update_transactions_data, {TxId, InterDcTxn}}, _From, State) ->
                         NewTxnsData2 = dict:store(TxId, NewTxData, State#comm_state.txns_data),
                         State#comm_state{txns_data = NewTxnsData2};
                     error ->
-                        io:format("~nTXN:~p not found in txnsData!~n", [TxId]),
+                        ct:print("TXN:~p not found in txnsData!", [TxId]),
                         State
                 end,
     {reply, ok, NewState}.
@@ -244,9 +243,10 @@ handle_cast({check,{SchParam, Bound}}, State) ->
 
   KeysDepClock1 = dict:fetch_keys(State#comm_state.dep_clock_prgm),
 
+  %%% for debugging
   lists:foreach(fun(T) ->
                   {ok, Deps2} = dict:find(T, NewDepTxnsPrgm),
-                  io:format("~n ==--==--==--== For T: ~w; Txn Deps: ~w ==--==--==--==~n", [T, Deps2])
+                  ?DEBUG_LOG(io_lib:format("~n ==--==--==--== For T: ~w; Txn Deps: ~w ==--==--==--==~n", [T, Deps2]))
                 end, KeysDepClock1),
 
   %%% DCs list is obtainedS dynamically
@@ -319,10 +319,13 @@ terminate(_Reason, _State) ->
 %%% Internal functions
 %%%====================================
 display_check_result(Scheduler) ->
-  ok = comm_utilities:write_to_file("schedules/result", "~n~n===========================Verification Result===========================~n~n", anything),
-  ok = comm_utilities:write_to_file("schedules/result", io_lib:format("~nChecking completed after exploring ~p schedules.~n", [Scheduler:schedule_count()]), anything),
-  io:format("~n~n===========================Verification Result===========================~n~n"),
-  io:format("Checking completed after exploring ~p schedules.~n", [Scheduler:schedule_count()]),
+  ok = comm_utilities:write_to_file("schedules/result",
+      "~n~n===========================Verification Result===========================~n~n", anything),
+  ok = comm_utilities:write_to_file("schedules/result",
+      io_lib:format("~nChecking completed after exploring ~p schedules.~n",
+          [Scheduler:schedule_count()]), anything),
+  ct:print("===========================Verification Result==========================="),
+  ct:print("Checking completed after exploring ~p schedules.~n", [Scheduler:schedule_count()]),
   riak_test ! stop.
 
 display_counter_example(Scheduler, Exception, Reason) ->
@@ -331,8 +334,9 @@ display_counter_example(Scheduler, Exception, Reason) ->
   ok = comm_utilities:write_to_file("schedules/result",
     io_lib:format("~nChecking failed after exploring ~p schedules, by exception: ~p~nWith reason: ~p~n",
       [Scheduler:schedule_count(), Exception, Reason]), anything),
-  io:format("~n~n===========================Verification Result===========================~n~n"),
-  io:format("Checking failed after exploring ~p schedules, by exception: ~p~nWith reason: ~p~n", [Scheduler:schedule_count(), Exception, Reason]),
+  ct:print("===========================Verification Result==========================="),
+  ct:print("Checking failed after exploring ~p schedules, by exception: ~p~nWith reason: ~p~n",
+      [Scheduler:schedule_count(), Exception, Reason]),
   if
     Scheduler == comm_delay_scheduler ->
       ok = comm_utilities:write_to_file("schedules/result",
@@ -344,11 +348,12 @@ display_counter_example(Scheduler, Exception, Reason) ->
   end,
   ok = comm_utilities:write_to_file("schedules/result",
     "~n===========================Counter Example===========================", anything),
-  io:format("~n===========================Counter Example==========================="),
+  ct:print("===========================Counter Example==========================="),
   CounterExample = Scheduler:curr_schedule(),
   ok = comm_utilities:write_to_file("/counter_example/ce",
     io_lib:format("~n~w~nCE length: ~p~n", [CounterExample, length(CounterExample)]), anything),
-  io:format("~nCounter example length (written to HOME/commander/schedules/result): ~p~n", [length(CounterExample)]),
+  ?DEBUG_LOG(io_lib:format("~nCounter example length (written to commanderDir/schedules/TestName): ~p~n",
+      [length(CounterExample)])),
 %%  write_time(Scheduler, ending).,
   riak_test ! stop.
 
@@ -385,7 +390,7 @@ print_dict(D) ->
   Keys = dict:fetch_keys(D),
   lists:foreach(fun(Key) ->
                   {ok, KDeps} = dict:find(Key, D),
-                  io:format("~n~n!!!!!!! K: ~w; KDeps: ~w !!!!!!!~n~n", [Key, KDeps])
+                  ?DEBUG_LOG(io_lib:format("~n~n!!!!!!! K: ~w; KDeps: ~w !!!!!!!~n~n", [Key, KDeps]))
                 end, Keys).
 
 print_dict_of_dict(D) ->
@@ -395,7 +400,7 @@ print_dict_of_dict(D) ->
                   [{st, ST}, {ct, CT}] = KDeps,
                   STLst = dict:to_list(ST),
                   CTLst = dict:to_list(CT),
-                  io:format("~n#########Txn: ~w ### ~nST: ~w~n CT: ~w #########~n", [Key, STLst, CTLst])
+                  ?DEBUG_LOG(io_lib:format("~n#########Txn: ~w ### ~nST: ~w~n CT: ~w #########~n", [Key, STLst, CTLst]))
                 end, Keys).
 
 write_time(_Scheduler, P) -> %% P: starting | ending
