@@ -112,16 +112,21 @@ get_all_partitions(ReplayerState) ->
                 rpc:call(HeadNode, dc_utilities, get_all_partitions, [])
               end, HeadNodes).
 
-write_to_file(FileName, Data, _Mode) ->
-    RootDir = get_home_dir() ++ "/commander/",
-    FullName = RootDir ++ FileName,
-    case filelib:is_regular(FullName) of
-        true ->
-            file:write_file(FullName, Data, [append]),
-            ok;
-        false ->
-          file:write_file(FullName, Data, [write]),
-          ok
+write_to_file(RelFileName, Data, Mode) ->
+    FileName = get_full_path(RelFileName, replay),
+    case Mode of
+        anything ->
+            case filelib:is_regular(FileName) of
+                true ->
+                    file:write_file(FileName, Data, [append]),
+                    ok;
+                false ->
+                    file:write_file(FileName, Data, [write]),
+                    ok
+            end;
+        Mode2 ->
+            file:write_file(FileName, Data, [Mode2]),
+            ok
     end.
 
 get_det_sym_sch(OrigSch) ->
@@ -156,3 +161,12 @@ get_det_sym_sch(OrigSch) ->
                         E1DC =< E2DC andalso E1OrigDC =< E2OrigDC andalso E1Tx =< E2Tx
                    end, Remotes),
   SortedLocals ++ SortedRemotes.
+
+get_full_path(RelPath, replay) ->
+    CommDir = os:getenv("COMMDIR"),
+    TestName = os:getenv("TEST"),
+    SchedulerName = os:getenv("SCHEDULER"),
+    FullPath = filename:join([CommDir, "schedules", TestName, SchedulerName, RelPath]),
+    ?DEBUG_LOG(io_lib:format("Write Full Path: ~p", [FullPath])),
+    filelib:ensure_dir(FullPath),
+    FullPath.
