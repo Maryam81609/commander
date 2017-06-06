@@ -43,7 +43,10 @@
          partition_cluster/2,
          heal_cluster/2,
          join_cluster/1,
-         set_up_clusters_common/1]).
+         set_up_clusters_common/1,
+         clocksi_check/1,
+         set_test_node/1,
+         disconnect_dcs/1]).
 
 at_init_testsuite() ->
 %% this might help, might not...
@@ -492,3 +495,30 @@ set_up_clusters_common(Config) ->
         connect_cluster(Clusterheads)
    end,
    [Cluster1, Cluster2, Cluster3].
+
+clocksi_check(Clusters) ->
+    Nodes = lists:flatten(Clusters),
+
+    %%% Ensure that the clocksi protocol is used
+    test_utils:pmap(fun(Node) ->
+        rpc:call(Node, application, set_env,
+            [antidote, txn_prot, clocksi]) end, Nodes),
+
+    %%% Check that indeed clocksi is running
+    {ok, clocksi} = rpc:call(hd(hd(Clusters)), application, get_env, [antidote, txn_prot]).
+
+set_test_node(Clusters) ->
+    Nodes = lists:flatten(Clusters),
+    %%% Send testing node name to all nodes
+    pmap(fun(Node) ->
+            true = rpc:call(Node, os, putenv, ["TESTNODE", atom_to_list(node())])
+         end, Nodes).
+
+disconnect_dcs(Clusters) ->
+    Descriptors = descriptors(Clusters),
+    lists:foreach(fun(Cluster) ->
+        Node = hd(Cluster),
+        ct:print("Making node ~p forget other DCs...", [Node]),
+        ok = rpc:call(Node, inter_dc_manager, forget_dcs, [Descriptors])
+                  end, Clusters),
+    ct:print("DC clusters disconnected!").

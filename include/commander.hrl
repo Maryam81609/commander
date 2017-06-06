@@ -87,7 +87,8 @@
                     dep_txns_prgm :: dict:dict(), %% tx_id -> list(tx_id)
                     %%% Used by Scheduler
                     curr_delay_seq :: delay_seq(),
-                    delay_direction :: atom()}).
+                    delay_direction :: atom(),
+                    ct_config :: list()}).
 
 -record(replay_state, {
   scheduler :: atom(),

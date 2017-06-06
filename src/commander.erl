@@ -25,6 +25,8 @@
         get_app_objects/2,
         display_result/0,
         write_time/2,
+        set_ct_config/1,
+        get_ct_config/0,
         %% callbacks
         init/1,
         handle_cast/2,
@@ -89,6 +91,12 @@ acknowledge_delivery(TxId, Timestamp) ->
 
 display_result() ->
   gen_server:call(?SERVER, display_result).
+
+set_ct_config(Config) ->
+    gen_server:call(?SERVER, {set_ct_config, {Config}}).
+
+get_ct_config() ->
+    gen_server:call(?SERVER, get_ct_config).
 
 stop() ->
     gen_server:cast(?SERVER, stop).
@@ -230,7 +238,15 @@ handle_call({update_transactions_data, {TxId, InterDcTxn}}, _From, State) ->
                         ct:print("TXN:~p not found in txnsData!", [TxId]),
                         State
                 end,
-    {reply, ok, NewState}.
+    {reply, ok, NewState};
+
+handle_call({set_ct_config, {Config}}, _From, State) ->
+    NewState = State#comm_state{ct_config = Config},
+    {reply, ok, NewState};
+
+handle_call(get_ct_config, _From, State) ->
+    CtConfig = State#comm_state.ct_config,
+    {reply, CtConfig, State}.
 
 handle_cast({check,{SchParam, Bound}}, State) ->
   {execution, 1, OrigSch} = State#comm_state.initial_exec,

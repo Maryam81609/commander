@@ -83,11 +83,27 @@ trim(remote_event, Event) ->
     EvTxns = Event#downstream_event.event_txns,
     #remote_event{event_dc = EvDc, event_node = EvNode, event_original_dc = EvOrigDc, event_commit_time = EvCT, event_snapshot_time = EvST, event_txns = EvTxns}.
 
-reset_dcs(Clusters) ->
-    io:format("~nReseting test environment...~nCluaters: ~p~n", [Clusters]),
-    Clean = rt_config:get(clean_cluster, true),
-    Clusters1 = common:clean_clusters(Clusters),
-    ok = common:setup_dc_manager(Clusters1, Clean),
+reset_dcs(CtConfig,Clusters) ->
+    ct:print("Reseting test environment..."),
+
+    %%% Disconnect DCs
+    test_utils:disconnect_dcs(Clusters),
+
+    %%% Clean DCs
+    Nodes = lists:flatten(Clusters),
+    test_utils:brutal_kill_nodes(Nodes),
+    NodesRootDir = proplists:get_value(priv_dir, CtConfig),
+    {ok, NodesRootCont} = file:list_dir(NodesRootDir),
+    NodesRootCont1 = [filename:join([NodesRootDir, NodeDir]) || NodeDir <- NodesRootCont],
+    NodeDirs = [NodeDir || NodeDir <- NodesRootCont1, filelib:is_dir(NodeDir)],
+    lists:foreach(fun(NodeDir) ->
+        os:cmd("rm -Rf " ++ NodeDir)
+                  end, NodeDirs),
+
+    %%% Build DCs
+    Clusters1 = test_utils:set_up_clusters_common(CtConfig),
+    test_utils:clocksi_check(Clusters1),
+    test_utils:set_test_node(Clusters1),
     Clusters1.
 
 type(Event) ->

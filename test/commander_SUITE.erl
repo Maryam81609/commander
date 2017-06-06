@@ -33,32 +33,22 @@ init_per_suite(Config) ->
     test_utils:at_init_testsuite(),
     true = erlang:set_cookie(node(), antidote),
     Clusters = test_utils:set_up_clusters_common(Config),
-    Nodes = lists:flatten(Clusters),
 
-    ?DEBUG_LOG(io_lib:format("Clusters: ~p", [Clusters])),
+    test_utils:clocksi_check(Clusters),
 
-    %%% Send testing node name to all nodes
-    test_utils:pmap(fun(Node) ->
-        true = rpc:call(Node, os, putenv, ["TESTNODE", atom_to_list(node())])
-        end, Nodes),
-
-    %%% Ensure that the clocksi protocol is used
-    test_utils:pmap(fun(Node) ->
-        rpc:call(Node, application, set_env,
-            [antidote, txn_prot, clocksi]) end, Nodes),
-
-    %%% Check that indeed clocksi is running
-    {ok, clocksi} = rpc:call(hd(hd(Clusters)), application, get_env, [antidote, txn_prot]),
-
-    {ok, _} = application:ensure_all_started(commander),
+    test_utils:set_test_node(Clusters),
 
     ?DEBUG_LOG("Passed nodes initialization!"),
+
+    {ok, _} = application:ensure_all_started(commander),
 
     SchedulerStr = os:getenv("SCHEDULER"),
     SchParamStr = os:getenv("SCHPARAM"),
     TestPath = os:getenv("TESTPATH"),
     SUTPath = os:getenv("SUTPATH"),
     TestName = os:getenv("TEST"),
+    CommDir = os:getenv("COMMDIR"),
+    Bound = os:getenv("BOUND"),
 
     ?DEBUG_LOG("Read application env vars!"),
     ?DEBUG_LOG(io_lib:format("SUT path: ~p", [SUTPath])),
@@ -92,7 +82,7 @@ init_per_suite(Config) ->
 
     ?DEBUG_LOG("Added to code path!"),
 
-    [{test_name, TestName}, {sch_param, SchParam}, {scheduler, Scheduler}, {clusters, Clusters}|Config].
+    [{bound, Bound}, {comm_dir, CommDir}, {test_name, TestName}, {sch_param, SchParam}, {scheduler, Scheduler}, {clusters, Clusters}|Config].
 
 end_per_suite(Config) ->
     Config.
@@ -103,6 +93,8 @@ init_per_testcase(comm_check, Config) ->
     {ok, _Pid} = commander:start_link(Scheduler, DelayDirection),
     ?DEBUG_LOG(io_lib:format("Cammander started on: ~p", [node()])),
     ?DEBUG_LOG(io_lib:format("~p", [node()])),
+    ok = commander:set_ct_config(Config),
+    true = erlang:register(commander_booter, self()),
     Config.
 
 end_per_testcase(comm_check, Config) ->
@@ -110,10 +102,37 @@ end_per_testcase(comm_check, Config) ->
     Config.
 
 comm_check(Config) ->
+    {Bound, _} = string:to_integer(proplists:get_value(bound, Config)),
+    SchParam = proplists:get_value(sch_param, Config),
     TestName = proplists:get_value(test_name, Config),
     TestModule = list_to_atom(TestName ++ "_comm"),
     true = os:putenv("TESTNODE", atom_to_list(node())),
+
     %%% Check if commander process is running
     true = lists:member(commander, erlang:registered()),
-    ?DEBUG_LOG(io_lib:format("~p", [erlang:registered()])),
-    TestModule:check(Config).
+    true = lists:member(commander_booter, erlang:registered()),
+    ?DEBUG_LOG(io_lib:format("booter: ~p   vs.   self: ~p", [whereis(commander_booter), self()])),
+
+    %%% Run the commander test case to record orig_exec
+    ok = comm_utilities:write_to_file("comm_result",
+        io_lib:format("~n===========================================================~n~n~w:~w~nParam:~p~n",
+            [starting, erlang:localtime(), SchParam]), anything),
+    pass = TestModule:check(Config),
+
+    ?DEBUG_LOG(io_lib:format("common test self: ~p", [self()])),
+
+    Clusters = proplists:get_value(clusters, Config),
+    ok = commander:get_clusters(Clusters),
+    ?DEBUG_LOG(io_lib:format("Config: ~p", [Config])),
+    %%% Do the exhaustive search
+    commander:check(SchParam, Bound),
+
+    %%% Receive stop message and teardown commander process
+    receive
+        stop ->
+            ct:print("~p schedules replyed.", [commander:passed_test_count()]),
+            ok = comm_utilities:write_to_file("comm_result",
+                io_lib:format("~n~w:~w~n", [ending, erlang:localtime()]), anything),
+            commander:stop(),
+            ct:print("Commander stoped on: ~p", [node()])
+    end.
