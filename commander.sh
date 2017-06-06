@@ -8,6 +8,7 @@ export COMMDIR=`pwd -P`
 export SCHEDULER=$1
 export SCHPARAM=$2
 export TEST=$3
+export BOUND=500
 export TESTPATH="$PWD/comm_tests/"
 export SUTPATH="${PWD%/*}/comm_benchs/$TEST"
 
