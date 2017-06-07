@@ -13,8 +13,11 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--define(DEBUG, true).
--define(DEBUG_LOG(Arg), if ?DEBUG -> ct:print(Arg) end).
+-define(DEBUG, false).
+-define(DEBUG_LOG(Arg), case ?DEBUG of
+                            true -> ct:print(Arg);
+                            false -> skip
+                        end).
 
 %% common_test callbacks
 -export([
@@ -116,7 +119,7 @@ comm_check(Config) ->
     %%% Run the commander test case to record orig_exec
     ok = comm_utilities:write_to_file("comm_result",
         io_lib:format("~n===========================================================~n~n~w:~w~nParam:~p~n",
-            [starting, erlang:localtime(), SchParam]), anything),
+            [starting, erlang:localtime(), SchParam]), write),
     pass = TestModule:check(Config),
 
     ?DEBUG_LOG(io_lib:format("common test self: ~p", [self()])),
@@ -132,7 +135,7 @@ comm_check(Config) ->
         stop ->
             ct:print("~p schedules replyed.", [commander:passed_test_count()]),
             ok = comm_utilities:write_to_file("comm_result",
-                io_lib:format("~n~w:~w~n", [ending, erlang:localtime()]), anything),
+                io_lib:format("~n~w:~w~n", [ending, erlang:localtime()]), append),
             commander:stop(),
             ct:print("Commander stoped on: ~p", [node()])
     end.

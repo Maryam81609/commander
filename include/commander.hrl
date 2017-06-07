@@ -1,7 +1,7 @@
 -include("antidote.hrl").
 -include("inter_dc_repl.hrl").
 
--define(DEBUG, true).
+-define(DEBUG, false).
 -define(DEBUG_LOG(Arg), case ?DEBUG of
                             true -> ct:print(Arg);
                             false -> skip

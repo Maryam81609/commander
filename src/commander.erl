@@ -139,7 +139,6 @@ handle_call({get_clusters, Clusters}, _From, State) ->
 
 handle_call(phase, _From, State) ->
     Phase = State#comm_state.phase,
-    ?DEBUG_LOG(io_lib:format("commander::phase::Phase: ~p", [Phase])),
     {reply, Phase, State};
 
 %% TODO: handle the case, where the transaction has no update operation
@@ -337,39 +336,40 @@ terminate(_Reason, _State) ->
 %%% Internal functions
 %%%====================================
 display_check_result(Scheduler) ->
-  ok = comm_utilities:write_to_file("result",
-      "~n~n===========================Verification Result===========================~n~n", write),
-  ok = comm_utilities:write_to_file("result",
+  ok = comm_utilities:write_to_file("comm_result",
+      "===========================Verification Result===========================", append),
+  ok = comm_utilities:write_to_file("comm_result",
       io_lib:format("~nChecking completed after exploring ~p schedules.~n",
           [Scheduler:schedule_count()]), append),
-  ct:print("===========================Verification Result==========================="),
-  ct:print("Checking completed after exploring ~p schedules.~n", [Scheduler:schedule_count()]),
-  riak_test ! stop.
+  ct:print("===========================Verification Result===========================
+        Checking completed after exploring ~p schedules.~n", [Scheduler:schedule_count()]),
+  commander_booter ! stop.
 
 display_counter_example(Scheduler, Exception, Reason) ->
-  ok = comm_utilities:write_to_file("result",
-    "~n~n===========================Verification Result===========================~n~n", write),
-  ok = comm_utilities:write_to_file("result",
-    io_lib:format("~nChecking failed after exploring ~p schedules, by exception: ~p~nWith reason: ~p~n",
+  ok = comm_utilities:write_to_file("comm_result",
+    "===========================Verification Result===========================", append),
+  ok = comm_utilities:write_to_file("comm_result",
+    io_lib:format("~nChecking failed after exploring ~p schedules, by exception: ~p~nWith reason: ~p",
       [Scheduler:schedule_count(), Exception, Reason]), append),
   ct:print("===========================Verification Result==========================="),
   ct:print("Checking failed after exploring ~p schedules, by exception: ~p~nWith reason: ~p~n",
       [Scheduler:schedule_count(), Exception, Reason]),
   if
     Scheduler == comm_delay_scheduler ->
-      ok = comm_utilities:write_to_file("result",
-        io_lib:format("~nDelay sequence: ~s~n", [Scheduler:get_delay_sequence()]), append),
+      ok = comm_utilities:write_to_file("comm_result",
+        io_lib:format("Delay sequence: ~s~n", [Scheduler:get_delay_sequence()]), append),
       io:format("Delay sequence: "),
       Scheduler:print_delay_sequence();
     true ->
       noop
   end,
   ok = comm_utilities:write_to_file("counter_example",
-    "~n===========================Counter Example===========================", write),
-  ct:print("===========================Counter Example==========================="),
+    "===========================Counter Example===========================", write),
   CounterExample = Scheduler:curr_schedule(),
   ok = comm_utilities:write_to_file("counter_example",
     io_lib:format("~n~w~nCE length: ~p~n", [CounterExample, length(CounterExample)]), append),
+  ct:print("===========================Counter Example==========================="),
+  ct:print("Counter example length (written to commanderDir/schedules/TestName): ~p", [length(CounterExample)]),
   ?DEBUG_LOG(io_lib:format("~nCounter example length (written to commanderDir/schedules/TestName): ~p~n",
       [length(CounterExample)])),
 %%  write_time(Scheduler, ending).,
@@ -422,4 +422,4 @@ extract_txns_dependency(DepClockPrgm) ->
 %%                end, Keys).
 
 write_time(_Scheduler, P) -> %% P: starting | ending
-  comm_utilities:write_to_file("result", io_lib:format("~n~w:~w~n", [P, erlang:localtime()]), anything).
+  comm_utilities:write_to_file("comm_result", io_lib:format("~n~w:~w~n", [P, erlang:localtime()]), anything).
