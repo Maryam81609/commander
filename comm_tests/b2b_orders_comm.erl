@@ -1,4 +1,4 @@
--module(b2b_orders_comm).
+-module(b2b_orders_1_comm).
 
 %% API
 -export([check/1,
@@ -135,6 +135,7 @@ handle_object_invariant(Node, [BudgetObj]) ->
     Budget =  get_val(Node, BudgetObj, ignore),
     ct:print("~nBudget for Store: ~w on node: ~w became: ~p~n", [Key, Node, Budget]),
     ?assert(Budget >= 0),
+    ct:sleep(2000),
     true.
 
 %%%=======================================

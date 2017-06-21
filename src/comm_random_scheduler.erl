@@ -70,7 +70,7 @@ init([[Seed, Bound, DepTxnsPrgm, DCs, OrigSchSym]]) ->
     bound = Bound,
     initial_seed = Seed,%%{1, 101, 301},%%{11, 25, 38},%%{320, 420, 520},%%{110, 220, 340},%%{110,220,280}, %% wallet : {210, 235,280},
     dep_txns_prgm = DepTxnsPrgm},
-  rand:seed(exs64, InitState#rand_schlr_state.initial_seed),
+  rand:seed(exsplus, InitState#rand_schlr_state.initial_seed),
   {ok, InitState}.
 
 handle_call(get_state, _From, State) ->
@@ -104,7 +104,7 @@ handle_call(setup_next_schedule, _From, State)->
   A1 = A+SchCnt,
   B1 = B+SchCnt,
   C1 = C+SchCnt,
-  rand:seed(exs64, {A1, B1, C1}),
+  rand:seed(exsplus, {A1, B1, C1}),
   {reply, ok, InitState};
 
 handle_call(next_event, _From, State) -> %% event | none
