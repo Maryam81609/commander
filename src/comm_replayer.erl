@@ -156,7 +156,7 @@ replay(local, Event, State) ->
   {TestModule, [EvNo, Node, _ST, AppArgs]} = LTxnData,
   TestModule:handle_event([EvNo, Node, ignore, AppArgs]),
   NewState = State#replay_state{latest_txids =[OrigTxId]},
-  io:format("~n Replayed a local event. ~n"),
+  io:format("~n Replayed a local event no ~p on node: ~p. ~n", [EvNo, Node]),
   NewState;
 
 replay(remote, Event, State) ->
@@ -176,15 +176,14 @@ replay(remote, Event, State) ->
   PT = hd(PartialTxns),
   NewTimestamp = PT#interdc_txn.timestamp,
   OriginalDCId = PT#interdc_txn.dcid,
-
   %%% Update clock on all partitions in the target DC
   Nodes = rpc:call(EventNode, dc_utilities, get_my_dc_nodes, []),
   lists:foreach(fun(Node) ->
                   Partitions = rpc:call(Node, dc_utilities, get_my_partitions, []),
                   lists:foreach(fun(Partition)->
-                                  ok = rpc:call(Node, inter_dc_dep_vnode, update_partition_clock, [Partition, OriginalDCId,
-                                    NewTimestamp])
+                                  ok = rpc:call(Node, inter_dc_dep_vnode, update_partition_clock,
+                                    [Partition, OriginalDCId, NewTimestamp])
                                 end, Partitions)
                 end, Nodes),
-  io:format("~n Replayed a remote event. ~n"),
+  io:format("~n Replayed the remote event ~p on: ~p. ~n", [Event, EventNode]),
   State.
