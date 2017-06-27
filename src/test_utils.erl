@@ -46,7 +46,14 @@
          set_up_clusters_common/1,
          clocksi_check/1,
          set_test_node/1,
-         disconnect_dcs/1]).
+         disconnect_dcs/1,
+         stop_nodes/1]).
+
+stop_nodes(Nodes) ->
+    lists:foreach(fun(Node) ->
+                    rpc:call(Node, application, stop, [antidote])
+                  end, Nodes),
+    kill_nodes(Nodes).
 
 at_init_testsuite() ->
 %% this might help, might not...
@@ -484,16 +491,12 @@ set_up_clusters_common(Config) ->
                   end,
    Clusters = pmap(fun(N) ->
                   StartDCs(N)
-              end, [[dev1, dev2], [dev3], [dev4]]),
-   [Cluster1, Cluster2, Cluster3] = Clusters,
-   %% Do not join cluster if it is already done
-   case owners_according_to(hd(Cluster1)) of % @TODO this is an adhoc check
-     Cluster1 -> ok; % No need to build Cluster
-     _ ->
-        [join_cluster(Cluster) || Cluster <- Clusters],
-        Clusterheads = [hd(Cluster) || Cluster <- Clusters],
-        connect_cluster(Clusterheads)
-   end,
+              end, [[dev1], [dev2], [dev3]]),%%,, dev2
+
+    [Cluster1, Cluster2, Cluster3] = Clusters,
+    [join_cluster(Cluster) || Cluster <- Clusters],
+    Clusterheads = [hd(Cluster) || Cluster <- Clusters],
+    connect_cluster(Clusterheads),
    [Cluster1, Cluster2, Cluster3].
 
 clocksi_check(Clusters) ->
