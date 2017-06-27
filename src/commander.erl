@@ -309,7 +309,8 @@ handle_cast({acknowledge_delivery, {_TxId, _Timestamp}}, State) ->
   %%% Check application invariant
   CurrSch = Scheduler:curr_schedule(),
   LatestEvent = lists:last(CurrSch),
-  timer:sleep(1000),
+
+    ct:sleep(1000),
   TestRes = comm_verifier:check_object_invariant(LatestEvent),
   %%% If test result is true continue exploring more schedules; otherwise provide a counter example
   case TestRes of
