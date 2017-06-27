@@ -365,7 +365,7 @@ display_counter_example(Scheduler, Exception, Reason) ->
       noop
   end,
   ok = comm_utilities:write_to_file("counter_example",
-    "===========================Counter Example===========================", write),
+    "===========================Counter Example===========================", append),
   CounterExample = Scheduler:curr_schedule(),
   ok = comm_utilities:write_to_file("counter_example",
     io_lib:format("~n~w~nCE length: ~p~n", [CounterExample, length(CounterExample)]), append),
