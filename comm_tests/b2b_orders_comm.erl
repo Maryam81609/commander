@@ -1,11 +1,13 @@
--module(b2b_orders_1_comm).
+-module(b2b_orders_comm).
+
+-behavior(comm_test).
+
+-include_lib("eunit/include/eunit.hrl").
 
 %% API
 -export([check/1,
     handle_event/1,
     handle_object_invariant/2]).
-
--include_lib("eunit/include/eunit.hrl").
 
 -define(INITBUDGET, 270000).
 -define(ITEMS, [{shirt, antidote_crdt_counter, bucket}, {pants, antidote_crdt_counter, bucket}, {dress, antidote_crdt_counter, bucket}]).
@@ -13,12 +15,6 @@
 -define(STOREIDS, [store1]).
 -define(BUDGET_UPDATE1, 20000).
 -define(BUDGET_UPDATE3, 30000).
-
--define(DEBUG, false).
--define(DEBUG_LOG(Arg), case ?DEBUG of
-                            true -> ct:print(Arg);
-                            false -> skip
-                        end).
 
 check(Config) ->
     Clusters = proplists:get_value(clusters, Config),
@@ -47,10 +43,10 @@ main_test(Node1, Node2, Node3) ->
                           end, CT2, CT3)),
 
     [BudgetObj] = BudgetObjs,
-    Vals = [get_val(Node, BudgetObj, Time) || Node <- [Node1, Node2, Node3]],
+    Vals = [b2b_orders:get_val(Node, BudgetObj, Time) || Node <- [Node1, Node2, Node3]],
 
     ?DEBUG_LOG(io_lib:format("Vals: ~w", [Vals])),
-    ?DEBUG_LOG(io_lib:format("Val on node 1: ~p", [get_val(Node1, BudgetObj, Time)])),
+    ?DEBUG_LOG(io_lib:format("Val on node 1: ~p", [b2b_orders:get_val(Node1, BudgetObj, Time)])),
 
     Quiescence_val = lists:usort(Vals),
     ?assertMatch(Quiescence_val, [hd(Vals)]),
@@ -132,21 +128,14 @@ handle_event([3, Node, ST, AppArgs]) ->
 %%%=======================================
 handle_object_invariant(Node, [BudgetObj]) ->
     {Key, _Type, _} = BudgetObj,
-    Budget =  get_val(Node, BudgetObj, ignore),
+    Budget =  b2b_orders:get_val(Node, BudgetObj, ignore),
     ct:print("~nBudget for Store: ~w on node: ~w became: ~p~n", [Key, Node, Budget]),
     ?assert(Budget >= 0),
-    ct:sleep(2000),
     true.
 
 %%%=======================================
 %%% Internal functions
 %%%=======================================
-get_val(Node, Obj, Clock) ->
-    {ok, Tx} = rpc:call(Node, antidote, start_transaction, [Clock, []]),
-    {ok, [Res]} = rpc:call(Node, antidote, read_objects, [[Obj], Tx]),
-    {ok, _CT1} = rpc:call(Node, antidote, commit_transaction, [Tx]),
-    Res.
-
 vc_max(VC1, VC2) ->
     dict:merge(fun(_K, V1, V2) ->
                     if
