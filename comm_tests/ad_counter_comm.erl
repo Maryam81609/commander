@@ -8,20 +8,15 @@
 %%%-------------------------------------------------------------------
 -module(ad_counter_comm).
 
+-behavior(comm_test).
+
 -include_lib("eunit/include/eunit.hrl").
 %% API
 -export([check/1, handle_event/1, handle_object_invariant/2]).
 
--define(DEBUG, false).
--define(DEBUG_LOG(Arg), case ?DEBUG of
-                          true -> ct:print(Arg);
-                          false -> skip
-                        end).
-
 check(Config) ->
   Clusters = proplists:get_value(clusters, Config),
   [Node1, Node2, Node3 | _Nodes] =  [ hd(Cluster)|| Cluster <- Clusters ],
-
   main_test(Node1, Node2, Node3).
 
 main_test(Node1, Node2, Node3) ->
@@ -52,20 +47,20 @@ main_test(Node1, Node2, Node3) ->
 dc1_txns(Node, Ad, _ReplyTo, ST) ->
   {_Res1, CT1} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
   {Res2, _CT2} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
-  ?DEBUG_LOG(io_lib:format("~n~n~nRes2: ~w ~n~n~n", [Res2])),
+  ?DEBUG_LOG(io_lib:format("Res2 on dc1: ~w", [Res2])),
   CT1.
 
 dc2_txns(Node, Ad, _ReplyTo, ST) ->
   {_Res1, CT1} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
   {Res2, CT2} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
-  ?DEBUG_LOG(io_lib:format("~n~n~nRes2: ~w ~n~n~n", [Res2])),
+  ?DEBUG_LOG(io_lib:format("Res2 on dc2: ~w", [Res2])),
   vc_max(CT1, CT2).
 
 dc3_txns(Node, Ad, _ReplyTo, ST) ->
   ?DEBUG_LOG(io_lib:format("ST in dc3: ~w~n",[dict:to_list(ST)])),
   {_Res1, _CT1} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
   {Res2, CT2} = comm_test:event(?MODULE, [1, Node, ignore, [Ad]]),
-  ?DEBUG_LOG(io_lib:format("~n~n~nRes2: ~w ~n~n~n", [Res2])),
+  ?DEBUG_LOG(io_lib:format("Res2 on dc3: ~w", [Res2])),
   CT2.
 
 %%%====================================
@@ -79,7 +74,7 @@ handle_event([1, Node, ST, AppArgs]) ->
 handle_object_invariant(Node, [Ad]) ->
   AdVal = ad_counter:get_val(Node, Ad, ignore),
   %%% if assert fails inform commander to provide a counter example
-  ct:print("~nAd value:~p~n", [AdVal]),
+  ct:print("~nAd value on ~p:~p~n", [Node, AdVal]),
   ?assert(AdVal =< 5 ),
   true.
 %%%=================================
