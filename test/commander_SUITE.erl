@@ -35,15 +35,6 @@ all() -> [comm_check].
 init_per_suite(Config) ->
     test_utils:at_init_testsuite(),
     true = erlang:set_cookie(node(), antidote),
-    Clusters = test_utils:set_up_clusters_common(Config),
-
-    test_utils:clocksi_check(Clusters),
-
-    test_utils:set_test_node(Clusters),
-
-    ?DEBUG_LOG("Passed nodes initialization!"),
-
-    {ok, _} = application:ensure_all_started(commander),
 
     SchedulerStr = os:getenv("SCHEDULER"),
     SchParamStr = os:getenv("SCHPARAM"),
@@ -85,12 +76,20 @@ init_per_suite(Config) ->
 
     ?DEBUG_LOG("Added to code path!"),
 
-    [{bound, Bound}, {comm_dir, CommDir}, {test_name, TestName}, {sch_param, SchParam}, {scheduler, Scheduler}, {clusters, Clusters}|Config].
+    Clusters = test_utils:set_up_clusters_common(Config),
+    test_utils:clocksi_check(Clusters),
+    test_utils:set_test_node(Clusters),
+    ?DEBUG_LOG("Passed nodes initialization!"),
+    {ok, _} = application:ensure_all_started(commander),
+
+    [{bound, Bound}, {comm_dir, CommDir}, {test_name, TestName},
+        {sch_param, SchParam}, {scheduler, Scheduler}, {clusters, Clusters}|Config].
 
 end_per_suite(Config) ->
     Config.
 
 init_per_testcase(comm_check, Config) ->
+    ct:timetrap({hours, 720}),
     Scheduler = proplists:get_value(scheduler, Config),
     DelayDirection = forward,
     {ok, _Pid} = commander:start_link(Scheduler, DelayDirection),
@@ -121,8 +120,6 @@ comm_check(Config) ->
         io_lib:format("~n===========================================================~n~n~w:~w~nParam:~p~n",
             [starting, erlang:localtime(), SchParam]), write),
     pass = TestModule:check(Config),
-
-    ?DEBUG_LOG(io_lib:format("common test self: ~p", [self()])),
 
     Clusters = proplists:get_value(clusters, Config),
     ok = commander:get_clusters(Clusters),
