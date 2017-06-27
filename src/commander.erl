@@ -370,6 +370,7 @@ display_counter_example(Scheduler, Exception, Reason) ->
   ok = comm_utilities:write_to_file("counter_example",
     io_lib:format("~n~w~nCE length: ~p~n", [CounterExample, length(CounterExample)]), append),
   ct:print("===========================Counter Example==========================="),
+  ct:print("~w", [CounterExample]),
   ct:print("Counter example length (written to commanderDir/schedules/TestName): ~p", [length(CounterExample)]),
   ?DEBUG_LOG(io_lib:format("~nCounter example length (written to commanderDir/schedules/TestName): ~p~n",
       [length(CounterExample)])),
