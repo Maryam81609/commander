@@ -118,7 +118,7 @@ comm_check(Config) ->
     %%% Run the commander test case to record orig_exec
     ok = comm_utilities:write_to_file("comm_result",
         io_lib:format("~n===========================================================~n~n~w:~w~nParam:~p~n",
-            [starting, erlang:localtime(), SchParam]), write),
+            [starting, erlang:localtime(), SchParam]), append),
     pass = TestModule:check(Config),
 
     Clusters = proplists:get_value(clusters, Config),
