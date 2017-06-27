@@ -133,6 +133,7 @@ comm_check(Config) ->
             ct:print("~p schedules replyed.", [commander:passed_test_count()]),
             ok = comm_utilities:write_to_file("comm_result",
                 io_lib:format("~n~w:~w~n", [ending, erlang:localtime()]), append),
+            test_utils:stop_nodes(lists:flatten(Clusters)),
             commander:stop(),
             ct:print("Commander stoped on: ~p", [node()])
     end.
