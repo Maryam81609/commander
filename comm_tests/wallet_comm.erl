@@ -11,7 +11,6 @@
 
 -behavior(comm_test).
 
--include("../include/commander.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% comm_test callbacks
@@ -84,7 +83,7 @@ dc2_txns(Node, Wallet, ST) ->
     {_R1, _CT1} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 800]]),
     {_R2, _CT2} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 500]]),
     {_R3, _CT3} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 600]]),
-    {_R4, _CT4} = comm_test:event(?MODULE, [2, Node, ST, [Wallet, 100]]),%%5000
+    {_R4, _CT4} = comm_test:event(?MODULE, [2, Node, ST, [Wallet, 5000]]),
     {_R5, _CT5} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 900]]),
     {_R6, _CT6} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 1200]]),
     {_R7, _CT7} = comm_test:event(?MODULE, [1, Node, ST, [Wallet, 2000]]),
@@ -123,9 +122,8 @@ handle_event([2, Node, ST, AppArgs]) ->
     [Wallet, N] = AppArgs,
     {Res2, {_Tx2, CT2}} = wallet:credit(Node, Wallet, N, ST),
     {ok, [Res], _CT} = rpc:call(Node, antidote, read_objects, [ignore, [], [Wallet]]),
-
     ?DEBUG_LOG(io_lib:format("~n:::::::::::::::::: CREDIT EVENT (2) FOR ::::::::::::::::::::
-            node: ~w ~p~nWITH RESULT:~p [~p]", [Node, AppArgs, Res, Res2])),
+            node: ~w ~p~nWITH RESULT:~p [~p]~n at time ~p", [Node, AppArgs, Res, Res2, CT2])),
 
     {Res2, CT2};
 
@@ -136,6 +134,6 @@ handle_event([3, Node, ST, AppArgs]) ->
 
 handle_object_invariant(Node, [Wallet]) ->
     WalletVal =  wallet:get_val(Node, Wallet, ignore),
-    ct:print("~nWallet value:~p~n", [WalletVal]),
+    ct:print("~nWallet value on ~p:~p~n", [Node, WalletVal]),
     ?assert(WalletVal >= 0),
     true.
