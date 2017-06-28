@@ -14,6 +14,16 @@ export SUTPATH="${PWD%/*}/comm_benchs/$TEST"
 
 #comm_benchs/$TEST"
 
+while getopts ":n" opt; do
+  case $opt in
+    n)
+      NEWTEST=$2
+      sed "1s/.*/-module(${NEWTEST}_comm)./" comm_test_template.erl > comm_tests/${NEWTEST}_comm.erl
+      exit 0
+      ;;
+  esac
+done
+
 if [ "$ARGCOUNT" -gt 3 ] || [ "$ARGCOUNT" -lt 3 ]; then
 	echo "Wrong number of arguments: $0 scheduler_type scheduler_param test_name"
 	exit 1
@@ -24,7 +34,7 @@ if [ ! "$SCHEDULER" = "delay" ] && [ ! "$SCHEDULER" = "random" ]; then
   exit 1
 fi
 
-SCH_LONG=“comm_$SCHEDULER_scheduler”
+SCH_LONG="comm_$SCHEDULER_scheduler"
 
 echo $SCH_LONG
 
