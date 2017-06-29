@@ -38,15 +38,28 @@ init_per_suite(Config) ->
 
     SchedulerStr = os:getenv("SCHEDULER"),
     SchParamStr = os:getenv("SCHPARAM"),
-    TestPath = os:getenv("TESTPATH"),
-    SUTPath = os:getenv("SUTPATH"),
     TestName = os:getenv("TEST"),
     CommDir = os:getenv("COMMDIR"),
-    Bound = os:getenv("BOUND"),
+    DefaultTestPath = os:getenv("TESTPATH"),
+    DefaultSUTPath = os:getenv("SUTPATH"),
+    DefaultBound = os:getenv("BOUND"),
+
+    ConfigData = {commander, [
+        {sut_app, list_to_atom(TestName)},
+        {sut_dir, DefaultSUTPath},
+        {test_dir, DefaultTestPath},
+        {bound, list_to_integer(DefaultBound)}]},
+
+    config:init(ConfigData),
+
+    SUTDir = config:get(sut_dir),
+    TestDir = config:get(test_dir),
+    AppName = config:get(sut_app),
+    Bound = config:get(bound),
 
     ?DEBUG_LOG("Read application env vars!"),
-    ?DEBUG_LOG(io_lib:format("SUT path: ~p", [SUTPath])),
-    ?DEBUG_LOG(io_lib:format("Test path: ~p", [TestPath])),
+    ?DEBUG_LOG(io_lib:format("SUT path: ~p", [SUTDir])),
+    ?DEBUG_LOG(io_lib:format("Test path: ~p", [TestDir])),
     ?DEBUG_LOG(io_lib:format("Scheduler: ~p", [SchedulerStr])),
     ?DEBUG_LOG(io_lib:format("SchParam: ~p", [SchParamStr])),
 
@@ -62,17 +75,15 @@ init_per_suite(Config) ->
                 DelayBound
         end,
 
-    SUTPathAsList = string:tokens(SUTPath, "\/"),
-    SUTName = lists:last(SUTPathAsList),
-    SUTFullPath = filename:join([SUTPath, "_build", "default/lib", SUTName, "ebin"]),
+    SUTFullPath = filename:join([SUTDir, "_build", "default/lib", AppName, "ebin"]),
 
     ?DEBUG_LOG("before adding to code path!"),
-    ?DEBUG_LOG(io_lib:format("Test path: ~p", [TestPath])),
+    ?DEBUG_LOG(io_lib:format("Test path: ~p", [TestDir])),
     ?DEBUG_LOG(io_lib:format("SUT path: ~p", [SUTFullPath])),
 
     %%% Add the test and SUT dirs to the code path
     true = code:add_path(SUTFullPath),
-    true = code:add_path(TestPath),
+    true = code:add_path(TestDir),
 
     ?DEBUG_LOG("Added to code path!"),
 
@@ -91,7 +102,7 @@ end_per_suite(Config) ->
 init_per_testcase(comm_check, Config) ->
     ct:timetrap({hours, 720}),
     Scheduler = proplists:get_value(scheduler, Config),
-    DelayDirection = forward,
+    DelayDirection = forward, %%backward,
     {ok, _Pid} = commander:start_link(Scheduler, DelayDirection),
     ?DEBUG_LOG(io_lib:format("Cammander started on: ~p", [node()])),
     ?DEBUG_LOG(io_lib:format("~p", [node()])),
