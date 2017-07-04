@@ -47,7 +47,9 @@
          clocksi_check/1,
          set_test_node/1,
          disconnect_dcs/1,
-         stop_nodes/1]).
+         stop_nodes/1,
+         start_sut_nodes/1]).
+%%         start_sut_node/2]).
 
 stop_nodes(Nodes) ->
     lists:foreach(fun(Node) ->
@@ -525,3 +527,61 @@ disconnect_dcs(Clusters) ->
         ok = rpc:call(Node, inter_dc_manager, forget_dcs, [Descriptors])
                   end, Clusters),
     ct:print("DC clusters disconnected!").
+
+start_sut_node(SUTNodeName, Cluster) ->
+    CodePath = lists:filter(fun filelib:is_dir/1, code:get_path()),
+    %% have the slave nodes monitor the runner node, so they can't outlive it
+    NodeConfig = [
+        {monitor_master, true},
+        {erl_flags, "-smp"},
+        {startup_functions, [
+            {code, set_path, [CodePath]}
+        ]}],
+    case ct_slave:start(SUTNodeName, NodeConfig) of
+        {ok, SUTNode} ->
+            {AntAdds, AntPorts} =
+                lists:foldl(fun(AntNode, {AntAdd, AntPort}) ->
+                                [AntNodeName | _] = string:tokens(atom_to_list(AntNode), "@"),
+                                AntAddsNew = AntAdd ++ "127.0.0.1 ",
+                                AntNodeName2 = list_to_atom(AntNodeName), %% This is an atom
+                                AntPortsNew = AntPort ++ integer_to_list(web_ports(AntNodeName2)+2) ++ " ", %% +2 gives the pb port
+                                {AntAddsNew, AntPortsNew}
+                            end, {"", ""}, Cluster),
+
+            true = rpc:call(SUTNode, os, putenv, ["ANTIDOTE_ADDRESSES", AntAdds]),
+            true = rpc:call(SUTNode, os, putenv, ["ANTIDOTE_PORTS", AntPorts]),
+
+            SUTDir = comm_config:get(sut_dir),
+            AppName = comm_config:get(sut_app),
+
+            LibsDir = filename:join([SUTDir, "_build", "default/lib"]),
+            ct:print("SUT Libs Dir: ~p", [LibsDir]),
+            {ok, Libs} = file:list_dir(LibsDir),
+            lists:foreach(fun(Lib) ->
+                            LibDir = filename:join([LibsDir, Lib, "ebin"]),
+                            true = rpc:call(SUTNode, code, add_path, [LibDir])
+                          end, Libs),
+
+            ok = rpc:call(SUTNode, application, load, [AppName]),
+            {ok, _} = rpc:call(SUTNode, application, ensure_all_started, [AppName]),
+            ct:print("Node ~p started", [SUTNode]),
+
+            SUTNode;
+        {error, Reason, SUTNode} ->
+            ct:print("Error starting node ~w, reason ~w, will retry", [SUTNode, Reason]),
+            ct_slave:stop(SUTNodeName),
+            start_sut_node(SUTNodeName, Cluster)
+    end.
+
+start_sut_nodes(Clusters) ->
+    AppName = comm_config:get(sut_app),
+    {_, Node_Cluster} =
+        lists:foldl(fun(Cluster, {I, Node_AntCluster}) ->
+                        SUTNodeName = list_to_atom(atom_to_list(AppName) ++ integer_to_list(I + 1)),
+                        {I+1, Node_AntCluster ++ [{SUTNodeName, Cluster}]}
+                    end, {0, []}, Clusters),
+
+    pmap(fun({NodeName, Cluster}) ->
+            start_sut_node(NodeName, Cluster)
+         end, Node_Cluster).
+

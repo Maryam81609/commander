@@ -52,13 +52,13 @@ init_per_suite(Config) ->
 
     comm_config:init(ConfigData),
 
-    SUTDir = comm_config:get(sut_dir),
+%%    SUTDir = comm_config:get(sut_dir),
     TestDir = comm_config:get(test_dir),
-    AppName = comm_config:get(sut_app),
+%%    AppName = comm_config:get(sut_app),
     Bound = comm_config:get(bound),
 
     ?DEBUG_LOG("Read application env vars!"),
-    ?DEBUG_LOG(io_lib:format("SUT path: ~p", [SUTDir])),
+%%    ?DEBUG_LOG(io_lib:format("SUT path: ~p", [SUTDir])),
     ?DEBUG_LOG(io_lib:format("Test path: ~p", [TestDir])),
     ?DEBUG_LOG(io_lib:format("Scheduler: ~p", [SchedulerStr])),
     ?DEBUG_LOG(io_lib:format("SchParam: ~p", [SchParamStr])),
@@ -75,25 +75,21 @@ init_per_suite(Config) ->
                 DelayBound
         end,
 
-    SUTFullPath = filename:join([SUTDir, "_build", "default/lib", AppName, "ebin"]),
-
-    ?DEBUG_LOG("before adding to code path!"),
-    ?DEBUG_LOG(io_lib:format("Test path: ~p", [TestDir])),
-    ?DEBUG_LOG(io_lib:format("SUT path: ~p", [SUTFullPath])),
-
-    %%% Add the test and SUT dirs to the code path
-    true = code:add_path(SUTFullPath),
     true = code:add_path(TestDir),
 
     %% Set up Antidote DCs
     Clusters = test_utils:set_up_clusters_common(Config),
     test_utils:clocksi_check(Clusters),
+
+    %% Setup SUT nodes
+    SUTNodes = test_utils:start_sut_nodes(Clusters),
+
     test_utils:set_test_node(Clusters),
     ?DEBUG_LOG("Passed nodes initialization!"),
     {ok, _} = application:ensure_all_started(commander),
 
     [{bound, Bound}, {comm_dir, CommDir}, {test_name, TestName},
-        {sch_param, SchParam}, {scheduler, Scheduler}, {clusters, Clusters}|Config].
+        {sch_param, SchParam}, {scheduler, Scheduler}, {clusters, Clusters}, {sut_nodes, SUTNodes}|Config].
 
 end_per_suite(Config) ->
     Config.
