@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 28. Jun 2017 3:09 PM
 %%%-------------------------------------------------------------------
--module(config).
+-module(comm_config).
 -author("maryam").
 
 %% API

@@ -50,12 +50,12 @@ init_per_suite(Config) ->
         {test_dir, DefaultTestPath},
         {bound, list_to_integer(DefaultBound)}]},
 
-    config:init(ConfigData),
+    comm_config:init(ConfigData),
 
-    SUTDir = config:get(sut_dir),
-    TestDir = config:get(test_dir),
-    AppName = config:get(sut_app),
-    Bound = config:get(bound),
+    SUTDir = comm_config:get(sut_dir),
+    TestDir = comm_config:get(test_dir),
+    AppName = comm_config:get(sut_app),
+    Bound = comm_config:get(bound),
 
     ?DEBUG_LOG("Read application env vars!"),
     ?DEBUG_LOG(io_lib:format("SUT path: ~p", [SUTDir])),
@@ -85,8 +85,7 @@ init_per_suite(Config) ->
     true = code:add_path(SUTFullPath),
     true = code:add_path(TestDir),
 
-    ?DEBUG_LOG("Added to code path!"),
-
+    %% Set up Antidote DCs
     Clusters = test_utils:set_up_clusters_common(Config),
     test_utils:clocksi_check(Clusters),
     test_utils:set_test_node(Clusters),
