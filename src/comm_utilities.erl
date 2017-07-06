@@ -89,9 +89,13 @@ reset_dcs(CtConfig,Clusters) ->
     %%% Disconnect DCs
     test_utils:disconnect_dcs(Clusters),
 
-    %%% Clean DCs
+    %%% Clean DCs and App Nodes
     Nodes = lists:flatten(Clusters),
     test_utils:brutal_kill_nodes(Nodes),
+
+    SUTNodes = proplists:get_value(sut_nodes, CtConfig),
+    test_utils:brutal_kill_nodes(SUTNodes),
+
     NodesRootDir = proplists:get_value(priv_dir, CtConfig),
     {ok, NodesRootCont} = file:list_dir(NodesRootDir),
     NodesRootCont1 = [filename:join([NodesRootDir, NodeDir]) || NodeDir <- NodesRootCont],
@@ -104,6 +108,10 @@ reset_dcs(CtConfig,Clusters) ->
     Clusters1 = test_utils:set_up_clusters_common(CtConfig),
     test_utils:clocksi_check(Clusters1),
     test_utils:set_test_node(Clusters1),
+
+    %%% Setup SUT nodes
+    test_utils:start_sut_nodes(Clusters1, CtConfig),
+
     Clusters1.
 
 type(Event) ->

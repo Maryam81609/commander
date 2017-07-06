@@ -48,8 +48,20 @@
          set_test_node/1,
          disconnect_dcs/1,
          stop_nodes/1,
-         start_sut_nodes/1]).
-%%         start_sut_node/2]).
+         start_sut_nodes/2,
+         stop_sut_nodes/2,
+         wait_until_all_offline/1]).
+
+wait_until_all_offline(Nodes) ->
+    pmap(fun(Node) ->
+            ok = wait_until_offline(Node)
+         end, Nodes).
+
+stop_sut_nodes(Nodes, App) ->
+    lists:foreach(fun(Node) ->
+                    rpc:call(Node, application, stop, [App])
+                  end, Nodes),
+    kill_nodes(Nodes).
 
 stop_nodes(Nodes) ->
     lists:foreach(fun(Node) ->
@@ -528,7 +540,7 @@ disconnect_dcs(Clusters) ->
                   end, Clusters),
     ct:print("DC clusters disconnected!").
 
-start_sut_node(SUTNodeName, Cluster) ->
+start_sut_node(SUTNodeName, Cluster, Config) ->
     CodePath = lists:filter(fun filelib:is_dir/1, code:get_path()),
     %% have the slave nodes monitor the runner node, so they can't outlive it
     NodeConfig = [
@@ -539,7 +551,16 @@ start_sut_node(SUTNodeName, Cluster) ->
         ]}],
     case ct_slave:start(SUTNodeName, NodeConfig) of
         {ok, SUTNode} ->
-            {AntAdds, AntPorts} =
+            PrivDir = proplists:get_value(priv_dir, Config),
+            NodeDir = filename:join([PrivDir, SUTNode]),
+            NodeLogDir = NodeDir ++ "/log/",
+            ok = filelib:ensure_dir(NodeLogDir),
+
+            ok = rpc:call(SUTNode, application, set_env, [lager, log_root, NodeDir]),
+            ok = rpc:call(SUTNode, application, load, [lager]),
+            {ok, _} = rpc:call(SUTNode, application, ensure_all_started, [lager]),
+
+            {AntAdds1, AntPorts1} =
                 lists:foldl(fun(AntNode, {AntAdd, AntPort}) ->
                                 [AntNodeName | _] = string:tokens(atom_to_list(AntNode), "@"),
                                 AntAddsNew = AntAdd ++ "127.0.0.1 ",
@@ -547,15 +568,20 @@ start_sut_node(SUTNodeName, Cluster) ->
                                 AntPortsNew = AntPort ++ integer_to_list(web_ports(AntNodeName2)+2) ++ " ", %% +2 gives the pb port
                                 {AntAddsNew, AntPortsNew}
                             end, {"", ""}, Cluster),
+            AntAdds = string:left(AntAdds1, string:len(AntAdds1)-1),
+            AntPorts = string:left(AntPorts1, string:len(AntPorts1)-1),
 
+            [AntPort1 | _] = string:tokens(AntPorts, " "),
+            HttpPort = integer_to_list(list_to_integer(AntPort1)-1000),
+
+            true = rpc:call(SUTNode, os, putenv, ["HTTP_PORT", HttpPort]),
             true = rpc:call(SUTNode, os, putenv, ["ANTIDOTE_ADDRESSES", AntAdds]),
-            true = rpc:call(SUTNode, os, putenv, ["ANTIDOTE_PORTS", AntPorts]),
+            true = rpc:call(SUTNode, os, putenv, ["ANTIDOTE_PB_PORTS", AntPorts]),
 
             SUTDir = comm_config:get(sut_dir),
             AppName = comm_config:get(sut_app),
 
             LibsDir = filename:join([SUTDir, "_build", "default/lib"]),
-            ct:print("SUT Libs Dir: ~p", [LibsDir]),
             {ok, Libs} = file:list_dir(LibsDir),
             lists:foreach(fun(Lib) ->
                             LibDir = filename:join([LibsDir, Lib, "ebin"]),
@@ -564,16 +590,16 @@ start_sut_node(SUTNodeName, Cluster) ->
 
             ok = rpc:call(SUTNode, application, load, [AppName]),
             {ok, _} = rpc:call(SUTNode, application, ensure_all_started, [AppName]),
-            ct:print("Node ~p started", [SUTNode]),
+            ct:print("Application ~p started on node ~p", [AppName, SUTNode]),
 
             SUTNode;
         {error, Reason, SUTNode} ->
             ct:print("Error starting node ~w, reason ~w, will retry", [SUTNode, Reason]),
             ct_slave:stop(SUTNodeName),
-            start_sut_node(SUTNodeName, Cluster)
+            start_sut_node(SUTNodeName, Cluster, Config)
     end.
 
-start_sut_nodes(Clusters) ->
+start_sut_nodes(Clusters, Config) ->
     AppName = comm_config:get(sut_app),
     {_, Node_Cluster} =
         lists:foldl(fun(Cluster, {I, Node_AntCluster}) ->
@@ -582,6 +608,5 @@ start_sut_nodes(Clusters) ->
                     end, {0, []}, Clusters),
 
     pmap(fun({NodeName, Cluster}) ->
-            start_sut_node(NodeName, Cluster)
+            start_sut_node(NodeName, Cluster, Config)
          end, Node_Cluster).
-

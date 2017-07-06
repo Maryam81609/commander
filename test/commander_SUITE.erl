@@ -52,13 +52,11 @@ init_per_suite(Config) ->
 
     comm_config:init(ConfigData),
 
-%%    SUTDir = comm_config:get(sut_dir),
     TestDir = comm_config:get(test_dir),
-%%    AppName = comm_config:get(sut_app),
+    AppName = comm_config:get(sut_app),
     Bound = comm_config:get(bound),
 
     ?DEBUG_LOG("Read application env vars!"),
-%%    ?DEBUG_LOG(io_lib:format("SUT path: ~p", [SUTDir])),
     ?DEBUG_LOG(io_lib:format("Test path: ~p", [TestDir])),
     ?DEBUG_LOG(io_lib:format("Scheduler: ~p", [SchedulerStr])),
     ?DEBUG_LOG(io_lib:format("SchParam: ~p", [SchParamStr])),
@@ -82,13 +80,13 @@ init_per_suite(Config) ->
     test_utils:clocksi_check(Clusters),
 
     %% Setup SUT nodes
-    SUTNodes = test_utils:start_sut_nodes(Clusters),
+    SUTNodes = test_utils:start_sut_nodes(Clusters, Config),
 
     test_utils:set_test_node(Clusters),
     ?DEBUG_LOG("Passed nodes initialization!"),
     {ok, _} = application:ensure_all_started(commander),
 
-    [{bound, Bound}, {comm_dir, CommDir}, {test_name, TestName},
+    [{app, AppName}, {bound, Bound}, {comm_dir, CommDir}, {test_name, TestName},
         {sch_param, SchParam}, {scheduler, Scheduler}, {clusters, Clusters}, {sut_nodes, SUTNodes}|Config].
 
 end_per_suite(Config) ->
@@ -114,6 +112,7 @@ comm_check(Config) ->
     SchParam = proplists:get_value(sch_param, Config),
     TestName = proplists:get_value(test_name, Config),
     TestModule = list_to_atom(TestName ++ "_comm"),
+    AppName = proplists:get_value(app, Config),
     true = os:putenv("TESTNODE", atom_to_list(node())),
 
     %%% Check if commander process is running
@@ -139,7 +138,12 @@ comm_check(Config) ->
             ct:print("~p schedules replyed.", [commander:passed_test_count()]),
             ok = comm_utilities:write_to_file("comm_result",
                 io_lib:format("~n~w:~w~n", [ending, erlang:localtime()]), append),
-            test_utils:stop_nodes(lists:flatten(Clusters)),
+            SUTNodes = proplists:get_value(sut_nodes, Config),
+            test_utils:stop_sut_nodes(SUTNodes, AppName),
+            test_utils:wait_until_all_offline(SUTNodes),
+            DBNodes = lists:flatten(Clusters),
+            test_utils:stop_nodes(DBNodes),
+            test_utils:wait_until_all_offline(DBNodes),
             commander:stop(),
             ct:print("Commander stoped on: ~p", [node()])
     end.
