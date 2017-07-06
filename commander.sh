@@ -14,6 +14,7 @@ export SUTPATH="${PWD%/*}/comm_benchs/$TEST"
 
 #comm_benchs/$TEST"
 
+# ./commander.sh -n NEWTESTNAME
 while getopts ":n" opt; do
   case $opt in
     n)
