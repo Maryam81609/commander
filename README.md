@@ -39,7 +39,12 @@ Every test case must implement `comm_test` behavior. This behavior provides two 
 * `check/1` is the entry point of the test module in the record phase. This function always returns `pass`.
 
 ## Run Commander for the given test case
-To verify the SUT using the specified test case, run:
+To build Commander, run:
+
+```bash
+make all
+```
+Compile the SUT, and then to verify the SUT using the specified test case, run:
 
 ```bash
 ./commander.sh SCHEDULER SCHEDULER_PARAM TESTNAME
