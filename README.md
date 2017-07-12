@@ -44,8 +44,8 @@ Every test case must implement `comm_test` behavior. This behavior provides two 
 To run all tests for three synthetic benchmarks, first make sure that those benchmarks are already compiled. Commander assumes they are under `comm_benchs` directory, and also it assumes `comm_benchs` and `commander` are under a same directory, otherwise the root path to the benchmarks should be specified in the commander.config as follows.
 ```Erlang
 {commander,[...
-				{sut_dir,"ROOT_PATH_TO_BENCHMARKS/ad_counter"},
-				...]}.
+    {sut_dir,"ROOT_PATH_TO_BENCHMARKS/ad_counter"},
+    ...]}.
 ```
 Then, run:
 ```bash
