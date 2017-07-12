@@ -45,16 +45,11 @@ main_test(Node1, Node2, Node3) ->
     [BudgetObj] = BudgetObjs,
     Vals = [b2b_orders:get_val(Node, BudgetObj, Time) || Node <- [Node1, Node2, Node3]],
 
-    ?DEBUG_LOG(io_lib:format("Vals: ~w", [Vals])),
-    ?DEBUG_LOG(io_lib:format("Val on node 1: ~p", [b2b_orders:get_val(Node1, BudgetObj, Time)])),
-
     Quiescence_val = lists:usort(Vals),
     ?assertMatch(Quiescence_val, [hd(Vals)]),
     pass.
 
 dc1_txns(Node, _Orders, [STInit]) ->
-    ?DEBUG_LOG(io_lib:format("~n~ntransactions on DC: ~w ", [Node])),
-
     Order1 = {b2b_orders:get_object_of(dress), 50, "Jan. 29"},
     Order2 = {b2b_orders:get_object_of(pants), 50, "Feb. 10"},
     Order3 = {b2b_orders:get_object_of(shirt), 50, "Feb. 15"},
