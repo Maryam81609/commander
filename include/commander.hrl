@@ -70,6 +70,7 @@
 -type exec_state() :: #exec_state{}.
 
 -record(comm_state, {%%% Common fields
+                    server_client :: dict:dict(), %% server_node -> client_node
                     scheduler :: atom(),
                     txns_data :: dict:dict(), %%txId -> [{local, localData}, {remote,list(partialTxns)}]
                     initial_exec :: execution(),

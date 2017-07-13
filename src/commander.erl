@@ -27,6 +27,7 @@
         write_time/2,
         set_ct_config/1,
         get_ct_config/0,
+        set_server_client/1,
         %% callbacks
         init/1,
         handle_cast/2,
@@ -74,6 +75,9 @@ passed_test_count() ->
 get_app_objects(Mod, Objs) ->
   gen_server:call(?SERVER, {get_app_objects, {Mod, Objs}}).
 
+set_server_client(Cli_Clusters) ->
+    gen_server:call(?SERVER, {set_server_client, {Cli_Clusters}}).
+
 check(SchParam, Bound) ->
   gen_server:cast(?SERVER, {check, {SchParam, Bound}}).
 
@@ -109,6 +113,17 @@ init([Scheduler, DelayDirection]) ->
     ExecId = 1,
     NewState = comm_recorder:init_record(ExecId, #comm_state{scheduler = Scheduler, delay_direction = DelayDirection}),
     {ok, NewState}.
+
+handle_call({set_server_client, {Cli_Clusters}}, _From, State) ->
+    Serv_Cli = lists:foldl(fun({ClientNode, ServerNodes}, Res) ->
+                           lists:foldl(fun(ServerNode, Res2) ->
+                                        dict:store(ServerNode, ClientNode, Res2)
+                                       end, Res, ServerNodes)
+                           end, dict:new(), Cli_Clusters),
+    ?DEBUG_LOG(io_lib:format("Server_Clients: ~p", [dict:to_list(Serv_Cli)])),
+
+    NewState = State#comm_state{server_client = Serv_Cli},
+    {reply, ok, NewState};
 
 handle_call(display_result, _From, State) ->
   Scheduler = State#comm_state.scheduler,
@@ -294,7 +309,8 @@ handle_cast({update_replay_txns_data, {LocalTxnData, InterDCTxn, TxId}}, State) 
   %%% Check application invariant
   CurrSch = Scheduler:curr_schedule(),
   LatestEvent = lists:last(CurrSch),
-  TestRes = comm_verifier:check_object_invariant(LatestEvent),
+    Serv_Cli = State#comm_state.server_client,
+  TestRes = comm_verifier:check_object_invariant(LatestEvent, Serv_Cli),
   %%% If test result is true continue exploring more schedules; otherwise provide a counter example
   case TestRes of
     true ->
@@ -311,7 +327,8 @@ handle_cast({acknowledge_delivery, {_TxId, _Timestamp}}, State) ->
   LatestEvent = lists:last(CurrSch),
 
     ct:sleep(1000),
-  TestRes = comm_verifier:check_object_invariant(LatestEvent),
+    Serv_Cli = State#comm_state.server_client,
+  TestRes = comm_verifier:check_object_invariant(LatestEvent, Serv_Cli),
   %%% If test result is true continue exploring more schedules; otherwise provide a counter example
   case TestRes of
     true ->

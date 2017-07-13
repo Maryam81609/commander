@@ -80,14 +80,22 @@ init_per_suite(Config) ->
     test_utils:clocksi_check(Clusters),
 
     %% Setup SUT nodes
-    SUTNodes = test_utils:start_sut_nodes(Clusters, Config),
+    Cli_Clusters = test_utils:start_sut_nodes(Clusters, Config),
+    SUTNodes = [SUTN || {SUTN, _Cluster} <- Cli_Clusters],
 
     test_utils:set_test_node(Clusters),
     ?DEBUG_LOG("Passed nodes initialization!"),
     {ok, _} = application:ensure_all_started(commander),
 
-    [{app, AppName}, {bound, Bound}, {comm_dir, CommDir}, {test_name, TestName},
-        {sch_param, SchParam}, {scheduler, Scheduler}, {clusters, Clusters}, {sut_nodes, SUTNodes}|Config].
+    [{app, AppName},
+        {bound, Bound},
+        {comm_dir, CommDir},
+        {test_name, TestName},
+        {sch_param, SchParam},
+        {scheduler, Scheduler},
+        {clusters, Clusters},
+        {sut_nodes, SUTNodes},
+        {client_clusters, Cli_Clusters}|Config].
 
 end_per_suite(Config) ->
     Config.
@@ -95,11 +103,13 @@ end_per_suite(Config) ->
 init_per_testcase(comm_check, Config) ->
     ct:timetrap({hours, 720}),
     Scheduler = proplists:get_value(scheduler, Config),
+    Cli_Clusters = proplists:get_value(client_clusters, Config),
     DelayDirection = forward, %%backward,
     {ok, _Pid} = commander:start_link(Scheduler, DelayDirection),
     ?DEBUG_LOG(io_lib:format("Cammander started on: ~p", [node()])),
     ?DEBUG_LOG(io_lib:format("~p", [node()])),
     ok = commander:set_ct_config(Config),
+    ok = commander:set_server_client(Cli_Clusters),
     true = erlang:register(commander_booter, self()),
     Config.
 
@@ -108,7 +118,7 @@ end_per_testcase(comm_check, Config) ->
     Config.
 
 comm_check(Config) ->
-    {Bound, _} = string:to_integer(proplists:get_value(bound, Config)),
+    Bound = proplists:get_value(bound, Config),
     SchParam = proplists:get_value(sch_param, Config),
     TestName = proplists:get_value(test_name, Config),
     TestModule = list_to_atom(TestName ++ "_comm"),
@@ -126,6 +136,8 @@ comm_check(Config) ->
             [starting, erlang:localtime(), SchParam]), append),
     pass = TestModule:check(Config),
 
+    %%% TODO: wait till latest txn's updates are recorded-remove sleep
+    ct:sleep(1000),
     Clusters = proplists:get_value(clusters, Config),
     ok = commander:get_clusters(Clusters),
     ?DEBUG_LOG(io_lib:format("Config: ~p", [Config])),

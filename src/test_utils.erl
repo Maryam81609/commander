@@ -608,5 +608,6 @@ start_sut_nodes(Clusters, Config) ->
                     end, {0, []}, Clusters),
 
     pmap(fun({NodeName, Cluster}) ->
-            start_sut_node(NodeName, Cluster, Config)
-         end, Node_Cluster).
+            SUTNode = start_sut_node(NodeName, Cluster, Config),
+            {SUTNode, Cluster}
+          end, Node_Cluster).

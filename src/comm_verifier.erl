@@ -16,7 +16,7 @@
 
 %% API
 -export([start_link/2,
-  check_object_invariant/1]).
+  check_object_invariant/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -43,8 +43,8 @@
 start_link(Mod, Objs) ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [Mod, Objs], []).
 
-check_object_invariant(Event) ->
-  gen_server:call(?SERVER, {check_object_invariant, {Event}}).
+check_object_invariant(Event, Serv_Cli) ->
+  gen_server:call(?SERVER, {check_object_invariant, {Event, Serv_Cli}}).
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -82,12 +82,29 @@ init([Mod, Objs]) ->
   {noreply, NewState :: #verifier_state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #verifier_state{}} |
   {stop, Reason :: term(), NewState :: #verifier_state{}}).
-handle_call({check_object_invariant, {Event}}, _From, State) ->
+handle_call({check_object_invariant, {Event, Serv_Cli}}, _From, State) ->
   Objects = State#verifier_state.app_objects,
   TestModule = State#verifier_state.test_module,
   EventNode = get_event_node(Event),
+
+  ServerNodes = dict:fetch_keys(Serv_Cli),
+
+  ClientNode =
+    case lists:member(EventNode, ServerNodes) of
+        true ->
+            R = dict:fetch(EventNode, Serv_Cli),
+            ?DEBUG_LOG(io_lib:format("CliNode: ~p", [R])),
+            R;
+        false ->
+            Serv_Cli_list = dict:to_list(Serv_Cli),
+            ClientNodes = [CliNode || {_, CliNode} <- Serv_Cli_list],
+            %% sanity check
+            true = lists:member(EventNode, ClientNodes),
+            EventNode
+    end,
+
   Res = try
-          TestModule:handle_object_invariant(EventNode, Objects)
+          TestModule:handle_object_invariant(ClientNode, Objects)
         of
           true -> true
         catch
