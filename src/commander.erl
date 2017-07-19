@@ -19,7 +19,7 @@
         run_next_test1/0,
         test_initialized/0,
         update_replay_txns_data/3,
-        acknowledge_delivery/2,
+        acknowledge_delivery/3,
         test_passed/0,
         passed_test_count/0,
         get_app_objects/2,
@@ -28,8 +28,12 @@
         set_ct_config/1,
         get_ct_config/0,
         set_server_client/1,
-        %% callbacks
-        init/1,
+        set_txn_partial_num/1,
+        reset_txn_ack_num/2,
+        get_txns_data/0]).
+
+%% gen_server callbacks
+-export([init/1,
         handle_cast/2,
         handle_call/3,
         handle_info/2,
@@ -44,6 +48,15 @@
 %%%====================================
 start_link(Scheduler, DelayDirection) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [Scheduler, DelayDirection], []).
+
+get_txns_data() ->
+    gen_server:call(?SERVER, {get_txns_data}).
+
+reset_txn_ack_num({TxId, EventDc}, Erase) ->
+    gen_server:call(?SERVER, {reset_txn_ack_num, {{TxId, EventDc}, Erase}}).
+
+set_txn_partial_num({TxId, PartialNum}) ->
+    gen_server:call(?SERVER, {set_txn_partial_num, {TxId, PartialNum}}).
 
 get_clusters(Clusters) ->
     gen_server:call(?SERVER, {get_clusters, Clusters}).
@@ -90,8 +103,8 @@ test_initialized() ->
 update_replay_txns_data(LocalTxnData, InterDCTxn, TxId) ->
   gen_server:cast(?SERVER, {update_replay_txns_data, {LocalTxnData, InterDCTxn, TxId}}).
 
-acknowledge_delivery(TxId, Timestamp) ->
-  gen_server:cast(?SERVER, {acknowledge_delivery, {TxId, Timestamp}}).
+acknowledge_delivery(TxId, RecDC, Timestamp) ->
+  gen_server:cast(?SERVER, {acknowledge_delivery, {TxId, RecDC, Timestamp}}).
 
 display_result() ->
   gen_server:call(?SERVER, display_result).
@@ -111,8 +124,28 @@ stop() ->
 init([Scheduler, DelayDirection]) ->
     ct:print("Commander started on: ~p", [node()]),
     ExecId = 1,
-    NewState = comm_recorder:init_record(ExecId, #comm_state{scheduler = Scheduler, delay_direction = DelayDirection}),
+    NewState = comm_recorder:init_record(ExecId,
+        #comm_state{scheduler = Scheduler,
+            delay_direction = DelayDirection,
+            txn_partial_num = dict:new(),
+            txn_ack_num = dict:new()}),
     {ok, NewState}.
+
+handle_call({get_txns_data}, _From, State) ->
+    {reply, State#comm_state.txns_data, State};
+
+handle_call({reset_txn_ack_num, {{TxId, EventDc}, _Erase}}, _From, State) ->
+    TxnAckNum = State#comm_state.txn_ack_num,
+    NewTxnAckNum = dict:erase({TxId, EventDc}, TxnAckNum),
+    NewState = State#comm_state{txn_ack_num = NewTxnAckNum},
+    {reply, ok, NewState};
+
+handle_call({set_txn_partial_num, {TxId, PartialNum}}, _From, State) ->
+    TxnPartNum = State#comm_state.txn_partial_num,
+    NewTxnPartNum = dict:store(TxId, PartialNum, TxnPartNum),
+    NewState = State#comm_state{txn_partial_num = NewTxnPartNum},
+    ?DEBUG_LOG(io_lib:format("Set txn_partial_num; ~p", [dict:to_list(NewState#comm_state.txn_partial_num)])),
+    {reply, ok, NewState};
 
 handle_call({set_server_client, {Cli_Clusters}}, _From, State) ->
     Serv_Cli = lists:foldl(fun({ClientNode, ServerNodes}, Res) ->
@@ -120,7 +153,6 @@ handle_call({set_server_client, {Cli_Clusters}}, _From, State) ->
                                         dict:store(ServerNode, ClientNode, Res2)
                                        end, Res, ServerNodes)
                            end, dict:new(), Cli_Clusters),
-    ?DEBUG_LOG(io_lib:format("Server_Clients: ~p", [dict:to_list(Serv_Cli)])),
 
     NewState = State#comm_state{server_client = Serv_Cli},
     {reply, ok, NewState};
@@ -158,77 +190,130 @@ handle_call(phase, _From, State) ->
 
 %% TODO: handle the case, where the transaction has no update operation
 handle_call({get_downstream_event_data, {Data}}, _From, State) ->
+%%    ?DEBUG_LOG(io_lib:format("Got downstream event data: ~p.", [Data])),
     {EventDc, EventNode, EventTxn} = Data,
-
-    EventOriginalDc = EventTxn#interdc_txn.dcid,
-    EventCommitTime = EventTxn#interdc_txn.timestamp,
-    EventSnapshot = EventTxn#interdc_txn.snapshot,
-    EventData = [EventTxn],
-
     LogRecords = EventTxn#interdc_txn.log_records,
     LastLogRec = lists:last(LogRecords),
     LogOp = LastLogRec#log_record.log_operation,
     TxnId = LogOp#log_operation.tx_id,
-    EventTxns = [TxnId],
 
-    NewDownstreamEvent = #downstream_event{
-        event_dc = EventDc,
-        event_node = EventNode,
-        event_original_dc = EventOriginalDc,
-        event_commit_time = EventCommitTime,
-        event_snapshot_time = EventSnapshot,
-        event_data = EventData,
-        event_txns = EventTxns},
+    TxnPartNum = State#comm_state.txn_partial_num,
+    TxnAckNum = State#comm_state.txn_ack_num,
+    PartNum = dict:fetch(TxnId, TxnPartNum),
 
-    NewState1 = comm_recorder:do_record(NewDownstreamEvent, State),
-    {reply, ok, NewState1};
+%%    ?DEBUG_LOG(io_lib:format("get_downstream_event_data::TxnAckNum: ~p", [TxnAckNum])),
 
-%% {TxId, DCID, CommitTime, SnapshotTime} = Data
+    Res = dict:find({TxnId, EventDc}, TxnAckNum),
+%%    ?DEBUG_LOG(io_lib:format("get_downstream_event_data-Res: ~p~n~p", [Res, {TxnId, EventDc}])),
+    Res2 =
+        case Res of
+            error ->
+                {ok, 0};
+            _ -> Res
+        end,
+%%    ?DEBUG_LOG(io_lib:format("get_downstream_event_data-Res2: ~p~n~p", [Res2, {TxnId, EventDc}])),
+    {NewAckNum, NewState1} =
+        case Res2 of
+            {ok, AckNum} when AckNum+1 == PartNum ->
+                EventTxns = [TxnId],
+                EventOriginalDc = EventTxn#interdc_txn.dcid,
+                EventCommitTime = EventTxn#interdc_txn.timestamp,
+                EventSnapshot = EventTxn#interdc_txn.snapshot,
+                NewDownstreamEvent = #downstream_event{
+                    event_dc = EventDc,
+                    event_node = EventNode,
+                    event_original_dc = EventOriginalDc,
+                    event_commit_time = EventCommitTime,
+                    event_snapshot_time = EventSnapshot,
+                    event_txns = EventTxns},
+                State2 = comm_recorder:do_record(NewDownstreamEvent, State),
+                ?DEBUG_LOG("get_downstream_event_data::recorded"),
+                commander_booter ! TxnId,
+                {0, State2};
+            {ok, AckNum} when AckNum < PartNum ->
+                ?DEBUG_LOG("get_downstream_event_data::in last match"),
+                {AckNum+1, State}
+        end,
+    NewTxnAckNum = dict:store({TxnId, EventDc}, NewAckNum, TxnAckNum),
+    NewState = NewState1#comm_state{txn_ack_num = NewTxnAckNum},
+    {reply, ok, NewState};
+
 handle_call({update_upstream_event_data, {Data}}, _From, State) ->
-    ?DEBUG_LOG("Commander:::::Received back upstream event data to update."),
     %% TODO: Handle the case if the txn is aborted or there is an error (Data =/= {txnid, _})
-    UpEvents = State#comm_state.upstream_events,
-    DepClockPrgm = State#comm_state.dep_clock_prgm, %% (none, [{st, DepClockPrgm}, {ct, unknown}]),
-    {TxId, DCID, CommitTime, SnapshotTime, _Partition} = Data,
-    NewState3 = case UpEvents of
-        [CurrentUpstreamEvent | Tail] ->
-            NewEventTxns = CurrentUpstreamEvent#upstream_event.event_txns ++ [TxId],
-            NewUpstreamEvent = CurrentUpstreamEvent#upstream_event{event_dc = DCID, event_commit_time = CommitTime, event_snapshot_time = SnapshotTime, event_txns = NewEventTxns},
+%%    ?DEBUG_LOG(io_lib:format("Commander::::: update upstream event data ~p.", [Data])),
+    {TxId, InterDcTxn, DCID, CommitTime, SnapshotTime, _Partition} = Data,
 
-            NewState1 = comm_recorder:do_record(NewUpstreamEvent, State),
+    TxnPartNum = State#comm_state.txn_partial_num,
+%%    ?DEBUG_LOG(io_lib:format("TxnPartNum: ~p", [dict:to_list(TxnPartNum)])),
+    PartNum = dict:fetch(TxId, TxnPartNum),
+    TxnAckNum = State#comm_state.txn_ack_num,
+    AckNum =
+        case dict:find({TxId, DCID}, TxnAckNum) of
+            {ok, N} -> N;
+            error -> 0
+        end,
+    NewState6 =
+        if
+            AckNum == 0 ->
+                UpEvents = State#comm_state.upstream_events,
+                DepClockPrgm = State#comm_state.dep_clock_prgm, %% (none, [{st, DepClockPrgm}, {ct, unknown}]),
+                case UpEvents of
+                    [CurrentUpstreamEvent | Tail] ->
+                        NewEventTxns = CurrentUpstreamEvent#upstream_event.event_txns ++ [TxId],
+                        NewUpstreamEvent = CurrentUpstreamEvent#upstream_event{event_dc = DCID, event_commit_time = CommitTime, event_snapshot_time = SnapshotTime, event_txns = NewEventTxns},
 
-            NewTxnsData = dict:store(TxId, [{local, NewUpstreamEvent#upstream_event.event_data}, {remote, []}], NewState1#comm_state.txns_data),
+                        NewState1 = comm_recorder:do_record(NewUpstreamEvent, State),
 
-            {ok, Val} = dict:find(none, DepClockPrgm),
-            %% Sanity check
-            F = dict:filter(fun(K, _V) -> K == none end, DepClockPrgm),
-            1 = dict:size(F),
-            DepClockPrgm1 = dict:erase(none, DepClockPrgm),
-            %% Sanity check
-            unknown = proplists:get_value(ct, Val),
+                        NewTxnsData = dict:store(TxId, [{local, NewUpstreamEvent#upstream_event.event_data}, {remote, []}], NewState1#comm_state.txns_data),
 
-            STPrgm = proplists:get_value(st, Val),
-            NewSTPrgm =
-              case STPrgm of
-                ignore ->
-                  dict:new();
-                _Else ->
-                  STPrgm
-              end,
-            Val1 = lists:keyreplace(st, 1, Val, {st, NewSTPrgm}),
-            VC_CT = dict:store(DCID, CommitTime, NewSTPrgm),
-            NewVal = lists:keyreplace(ct, 1, Val1, {ct, VC_CT}),
-            NewDepClockPrgm = dict:store(TxId, NewVal, DepClockPrgm1),
+                        {ok, Val} = dict:find(none, DepClockPrgm),
+                        %% Sanity check
+                        F = dict:filter(fun(K, _V) -> K == none end, DepClockPrgm),
+                        1 = dict:size(F),
+                        DepClockPrgm1 = dict:erase(none, DepClockPrgm),
+                        %% Sanity check
+                        unknown = proplists:get_value(ct, Val),
 
-            NewUpstreamEvents = Tail,
-            NewState1#comm_state{upstream_events = NewUpstreamEvents, txns_data = NewTxnsData, dep_clock_prgm = NewDepClockPrgm};
-        [] ->
-            State
-    end,
-    {reply, ok, NewState3};
+                        STPrgm = proplists:get_value(st, Val),
+                        NewSTPrgm =
+                            case STPrgm of
+                                ignore ->
+                                    dict:new();
+                                _Else ->
+                                    STPrgm
+                            end,
+                        Val1 = lists:keyreplace(st, 1, Val, {st, NewSTPrgm}),
+                        VC_CT = dict:store(DCID, CommitTime, NewSTPrgm),
+                        NewVal = lists:keyreplace(ct, 1, Val1, {ct, VC_CT}),
+                        NewDepClockPrgm = dict:store(TxId, NewVal, DepClockPrgm1),
+
+                        NewUpstreamEvents = Tail,
+    %%                            ?DEBUG_LOG(io_lib:format("NewTxnData: ~p", [dict:to_list(NewTxnsData)])),
+                        NewState1#comm_state{upstream_events = NewUpstreamEvents, txns_data = NewTxnsData, dep_clock_prgm = NewDepClockPrgm};
+                    [] ->
+                        throw("Upstream event client data does not exist!")
+                end;
+            true ->
+                State
+        end,
+    ?DEBUG_LOG(io_lib:format("PartNum: ~p; AckNum: ~p", [PartNum, AckNum])),
+    {NewAckNum, NewState5} =
+        if
+            AckNum + 1 == PartNum ->
+                NewState3 = update_transactions_data(TxId, InterDcTxn, NewState6),
+                commander_booter ! TxId,
+                {0, NewState3};
+            AckNum < PartNum ->
+                NewState2 = update_transactions_data(TxId, InterDcTxn, NewState6),
+                {AckNum + 1, NewState2}
+        end,
+    NewTxnAckNum = dict:store({TxId, DCID}, NewAckNum, TxnAckNum),
+    NewState = NewState5#comm_state{txn_ack_num = NewTxnAckNum},
+    {reply, ok, NewState};
 
 handle_call({get_upstream_event_data, {Data}}, _From, State) ->
-    ?DEBUG_LOG("Commander:::::Received upstream event data to record."),
+%%    ?DEBUG_LOG(io_lib:format("Commander:::::Get upstream event data to record: ~p.", [Data])),
+    ?DEBUG_LOG("Commander:::::Get upstream event data to record."),
     {_M, [EvNo | Tail ]} = Data,
     [EventNode, ClockPrgm, _] = Tail,
     NewUpstreamEvent = #upstream_event{event_no = EvNo, event_node = EventNode, event_data = Data, event_txns = []},
@@ -237,21 +322,6 @@ handle_call({get_upstream_event_data, {Data}}, _From, State) ->
     NewUpstreamEvents = State#comm_state.upstream_events ++ [NewUpstreamEvent],
 
     NewState = State#comm_state{upstream_events = NewUpstreamEvents, dep_clock_prgm = NewDepClockPrgm},
-    {reply, ok, NewState};
-
-handle_call({update_transactions_data, {TxId, InterDcTxn}}, _From, State) ->
-    ?DEBUG_LOG("Commander:::::Received back transaction data to update."),
-    NewState = case dict:find(TxId, State#comm_state.txns_data) of
-                    {ok, TxData} ->
-                        [LocalData, {remote, PartTxns}] = TxData,
-                        NewPartTxns = PartTxns ++ [InterDcTxn],
-                        NewTxData = [LocalData, {remote, NewPartTxns}],
-                        NewTxnsData2 = dict:store(TxId, NewTxData, State#comm_state.txns_data),
-                        State#comm_state{txns_data = NewTxnsData2};
-                    error ->
-                        ct:print("TXN:~p not found in txnsData!", [TxId]),
-                        State
-                end,
     {reply, ok, NewState};
 
 handle_call({set_ct_config, {Config}}, _From, State) ->
@@ -268,8 +338,6 @@ handle_cast({check,{SchParam, Bound}}, State) ->
   DelayDirection = State#comm_state.delay_direction,
   ok = write_time(Scheduler, starting),
 
-  ?DEBUG_LOG("commander::check::wrote time."),
-
   %%% Extract transactions dependency
   NewDepTxnsPrgm = extract_txns_dependency(State#comm_state.dep_clock_prgm),
 
@@ -282,9 +350,9 @@ handle_cast({check,{SchParam, Bound}}, State) ->
 
   %%% DCs list is obtained dynamically
   Clusters = State#comm_state.clusters,
-  ?DEBUG_LOG(io_lib:format("commander::check::Clusters: ~p", [Clusters])),
+%%  ?DEBUG_LOG(io_lib:format("commander::check::Clusters: ~p", [Clusters])),
   DCs = comm_utilities:get_all_dcs(Clusters),
-  ?DEBUG_LOG(io_lib:format("commander::check::DCs: ~p", [DCs])),
+%%  ?DEBUG_LOG(io_lib:format("commander::check::DCs: ~p", [DCs])),
 
   OrigSymSch = comm_utilities:get_det_sym_sch(OrigSch),
   TxnsData = State#comm_state.txns_data,
@@ -294,7 +362,7 @@ handle_cast({check,{SchParam, Bound}}, State) ->
   {noreply, NewState};
 
 handle_cast(test_initialized, State) ->
-  NewState = State#comm_state{phase = replay},
+  NewState = State#comm_state{phase = replay, txn_partial_num = dict:new(), txn_ack_num = dict:new()},
   comm_replayer:replay_next_async(),
   {noreply, NewState};
 
@@ -305,38 +373,83 @@ handle_cast(run_next_test1, State) ->
 handle_cast({update_replay_txns_data, {LocalTxnData, InterDCTxn, TxId}}, State) ->
   ok = comm_replayer:update_txns_data(LocalTxnData, InterDCTxn, TxId),
 
-  Scheduler = State#comm_state.scheduler,
-  %%% Check application invariant
-  CurrSch = Scheduler:curr_schedule(),
-  LatestEvent = lists:last(CurrSch),
-    Serv_Cli = State#comm_state.server_client,
-  TestRes = comm_verifier:check_object_invariant(LatestEvent, Serv_Cli),
-  %%% If test result is true continue exploring more schedules; otherwise provide a counter example
-  case TestRes of
-    true ->
-      comm_replayer:replay_next_async();
-    {caught, Exception, Reason} ->
-      display_counter_example(Scheduler, Exception, Reason)
-  end,
-  {noreply, State};
+    {_, _, DCID, _, _, _} = LocalTxnData,
+    TxnPartNum = State#comm_state.txn_partial_num,
+    PartNum = dict:fetch(TxId, TxnPartNum),
 
-handle_cast({acknowledge_delivery, {_TxId, _Timestamp}}, State) ->
-  Scheduler = State#comm_state.scheduler,
-  %%% Check application invariant
-  CurrSch = Scheduler:curr_schedule(),
-  LatestEvent = lists:last(CurrSch),
+    TxnAckNum = State#comm_state.txn_ack_num,
 
-    ct:sleep(1000),
-    Serv_Cli = State#comm_state.server_client,
-  TestRes = comm_verifier:check_object_invariant(LatestEvent, Serv_Cli),
-  %%% If test result is true continue exploring more schedules; otherwise provide a counter example
-  case TestRes of
-    true ->
-      comm_replayer:replay_next_async();
-    {caught, Exception, Reason} ->
-      display_counter_example(Scheduler, Exception, Reason)
-  end,
-  {noreply, State};
+    AckNum =
+        case dict:find({TxId, DCID}, TxnAckNum) of
+            {ok, N} -> N;
+            error -> 0
+        end,
+    ?DEBUG_LOG(io_lib:format("commander::update_replay_txns_data; AckNum1: ~p", [AckNum])),
+
+    NewAckNum =
+        if
+            AckNum+1 == PartNum ->
+                Scheduler = State#comm_state.scheduler,
+                %%% Check application invariant
+                CurrSch = Scheduler:curr_schedule(),
+                LatestEvent = lists:last(CurrSch),
+                Serv_Cli = State#comm_state.server_client,
+                TestRes = comm_verifier:check_object_invariant(LatestEvent, Serv_Cli),
+                ?DEBUG_LOG(io_lib:format("commander::update_replay_txns_data; TestRes: ~p", [TestRes])),
+                %%% If test result is true continue exploring more schedules; otherwise provide a counter example
+                case TestRes of
+                    true ->
+                        comm_replayer:replay_next_async();
+                    {caught, Exception, Reason} ->
+                        display_counter_example(Scheduler, Exception, Reason)
+                end,
+                0;
+            AckNum < PartNum ->
+                AckNum + 1
+        end,
+
+    NewTxnAckNum = dict:store({TxId, DCID}, NewAckNum, TxnAckNum),
+    NewState = State#comm_state{txn_ack_num = NewTxnAckNum},
+  {noreply, NewState};
+
+handle_cast({acknowledge_delivery, {TxId, RecDC, _Timestamp}}, State) ->
+    ?DEBUG_LOG("in acknowledge_delivery"),
+    TxnPartNum = State#comm_state.txn_partial_num,
+    PartNum = dict:fetch(TxId, TxnPartNum),
+    TxnAckNum = State#comm_state.txn_ack_num,
+
+    AckNum =
+        case dict:find({TxId, RecDC}, TxnAckNum) of
+            {ok, N} -> N;
+            error -> 0
+        end,
+    NewAckNum =
+        if
+            AckNum+1 == PartNum ->
+                Scheduler = State#comm_state.scheduler,
+                %%% Check application invariant
+                CurrSch = Scheduler:curr_schedule(),
+                LatestEvent = lists:last(CurrSch),
+
+                ct:sleep(1000),
+                Serv_Cli = State#comm_state.server_client,
+                ?DEBUG_LOG("in ackn before check inv"),
+                TestRes = comm_verifier:check_object_invariant(LatestEvent, Serv_Cli),
+                ?DEBUG_LOG(io_lib:format("TestRes in ackn: ~p", [TestRes])),
+                case TestRes of
+                    true ->
+                        comm_replayer:replay_next_async();
+                    {caught, Exception, Reason} ->
+                        display_counter_example(Scheduler, Exception, Reason)
+                end,
+                0;
+            AckNum < PartNum ->
+                AckNum + 1
+        end,
+
+    NewTxnAckNum = dict:store({TxId, RecDC}, NewAckNum, TxnAckNum),
+    NewState = State#comm_state{txn_ack_num = NewTxnAckNum},
+    {noreply, NewState};
 
 handle_cast(stop, State) ->
     {stop, normal, State}.
@@ -353,6 +466,25 @@ terminate(_Reason, _State) ->
 %%%====================================
 %%% Internal functions
 %%%====================================
+update_transactions_data(TxId, InterDcTxn, State) ->
+    ?DEBUG_LOG("Commander:::::Received back transaction data to update."),
+    TxnsData = State#comm_state.txns_data,
+%%    ?DEBUG_LOG(io_lib:format("TxnData: ~p", [dict:to_list(TxnsData)])),
+%%    ?DEBUG_LOG(io_lib:format("InterDCTxnData: ~p", [InterDcTxn])),
+    case dict:find(TxId, TxnsData) of
+        {ok, TxData} ->
+            [LocalData, {remote, PartTxns}] = TxData,
+            NewPartTxns = PartTxns ++ [InterDcTxn],
+            NewTxData = [LocalData, {remote, NewPartTxns}],
+            NewTxnsData2 = dict:store(TxId, NewTxData, State#comm_state.txns_data),
+%%            ?DEBUG_LOG(io_lib:format("NewTxnData: ~p", [dict:to_list(NewTxnsData2)])),
+            State#comm_state{txns_data = NewTxnsData2};
+        error ->
+            ?DEBUG_LOG(io_lib:format("TxnData: ~p", [dict:to_list(TxnsData)])),
+            ct:print("TXN:~p not found in txnsData!", [TxId]),
+            State
+        end.
+
 display_check_result(Scheduler) ->
   ok = comm_utilities:write_to_file("comm_result",
       "===========================Verification Result===========================", append),

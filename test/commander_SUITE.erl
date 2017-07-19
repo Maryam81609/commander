@@ -136,8 +136,6 @@ comm_check(Config) ->
             [starting, erlang:localtime(), SchParam]), append),
     pass = TestModule:check(Config),
 
-    %%% TODO: wait till latest txn's updates are recorded-remove sleep
-    ct:sleep(1000),
     Clusters = proplists:get_value(clusters, Config),
     ok = commander:get_clusters(Clusters),
     ?DEBUG_LOG(io_lib:format("Config: ~p", [Config])),

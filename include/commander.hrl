@@ -70,6 +70,8 @@
 -type exec_state() :: #exec_state{}.
 
 -record(comm_state, {%%% Common fields
+                    txn_ack_num :: dict:dict(), %% {TxId, DcId} -> Integer =< |updated_partitions|
+                    txn_partial_num :: dict:dict(), %% TxId -> |updated_partitions|
                     server_client :: dict:dict(), %% server_node -> client_node
                     scheduler :: atom(),
                     txns_data :: dict:dict(), %%txId -> [{local, localData}, {remote,list(partialTxns)}]
@@ -83,7 +85,7 @@
                     replay_history :: [execution()], %% Consider keeping only the list of event indices in the original exec
                     exec_counter :: non_neg_integer(), %% Name the recorded files
                     %%% Used by Recorder to record the initial execution
-                    upstream_events :: [upstream_event],
+                    upstream_events :: [upstream_event()],
                     dep_clock_prgm :: dict:dict(), %% tx_id -> [{st, vectorclock}, {ct, vectorclock}]}
                     dep_txns_prgm :: dict:dict(), %% tx_id -> list(tx_id)
                     %%% Used by Scheduler

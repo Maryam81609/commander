@@ -71,8 +71,16 @@ handle_call({update_txns_data, {_EventData, InterDCTxn, TxId}}, _From, State) ->
   TxnsData = State#replay_state.txns_data,
   {ok, [{local, LocalEventData}, _]} = dict:find(PreReplayedTxId, TxnsData),
   %%% TODO: Update the following to work for more than one partial transaction
-  TxnsData1 = dict:erase(PreReplayedTxId, TxnsData),
-  NewTxnsData = dict:store(TxId, [{local, LocalEventData}, {remote, [InterDCTxn]}], TxnsData1),
+%%  TxnsData1 = dict:erase(PreReplayedTxId, TxnsData),
+    NewTxnsData =
+        case dict:find(TxId, TxnsData) of %% TxnsData1
+            {ok, [{local, _}, {remote, InterDcTxns}]} ->
+                dict:store(TxId, [{local, LocalEventData}, {remote, InterDcTxns ++ [InterDCTxn]}], TxnsData); %%TxnsData1
+            error ->
+                dict:store(TxId, [{local, LocalEventData}, {remote, [InterDCTxn]}], TxnsData) %%TxnsData1
+        end,
+  [{local, _}, {remote, InterDCs}] = dict:fetch(TxId, NewTxnsData),
+  ?DEBUG_LOG(io_lib:format("comm_replay::update_txns_data::New txns data-INterDcs: ~p", [InterDCs])),
   NewState = State#replay_state{txn_map = NewTxnMap, txns_data = NewTxnsData},
   {reply, ok, NewState}.
 
@@ -139,6 +147,7 @@ get_next_runnable_event(Scheduler) ->
 
 -spec(replay(Event::#local_event{} | #remote_event{}, State::#replay_state{}) -> #replay_state{}).
 replay(Event, State) ->
+  ?DEBUG_LOG("in internal replay"),
   case comm_utilities:type(Event) of
     local ->
       replay(local, Event, State);
@@ -147,10 +156,14 @@ replay(Event, State) ->
   end.
 
 replay(local, Event, State) ->
+  ?DEBUG_LOG("in internal replay local"),
   TxnMap = State#replay_state.txn_map,
   TxnData = State#replay_state.txns_data,
   [OrigTxId] = Event#local_event.event_txns,
   {ok, TxId} = dict:find(OrigTxId, TxnMap),
+
+    EventDC = Event#local_event.event_dc,
+    ok = commander:reset_txn_ack_num({TxId, EventDC}, true),
 
   {ok, [{local, LTxnData}, _]} = dict:find(TxId, TxnData),
   {TestModule, [EvNo, Node, _ST, AppArgs]} = LTxnData,
@@ -160,24 +173,31 @@ replay(local, Event, State) ->
   NewState;
 
 replay(remote, Event, State) ->
+  ?DEBUG_LOG("in internal replay remote"),
   TxnData = State#replay_state.txns_data, %%txId -> [{local, localData}, {remote,list(partialTxns)}]
   TxnMap = State#replay_state.txn_map,
 
   [PreTxId] = Event#remote_event.event_txns,
   EventNode = Event#remote_event.event_node,
+  EventDC= Event#remote_event.event_dc,
 
   {ok, TxId} = dict:find(PreTxId, TxnMap),
-  {ok, [_, {remote, PartialTxns}]} = dict:find(TxId, TxnData),
 
+  ok = commander:reset_txn_ack_num({TxId, EventDC}, false),
+
+  {ok, [_, {remote, PartialTxns}]} = dict:find(TxId, TxnData),
+  ?DEBUG_LOG(io_lib:format("in internal replay remote, before delivering, partial txns cnt: ~p.", [length(PartialTxns)])),
   ok = lists:foreach(fun(InterDcTxn) ->
                        ok = rpc:call(EventNode, inter_dc_sub_vnode, deliver_txn, [InterDcTxn])
                      end, PartialTxns),
 
+  ?DEBUG_LOG("in internal replay remote, after delivering."),
   PT = hd(PartialTxns),
   NewTimestamp = PT#interdc_txn.timestamp,
   OriginalDCId = PT#interdc_txn.dcid,
   %%% Update clock on all partitions in the target DC
   Nodes = rpc:call(EventNode, dc_utilities, get_my_dc_nodes, []),
+  ?DEBUG_LOG("in internal replay remote, before clock update."),
   lists:foreach(fun(Node) ->
                   Partitions = rpc:call(Node, dc_utilities, get_my_partitions, []),
                   lists:foreach(fun(Partition)->
@@ -185,5 +205,6 @@ replay(remote, Event, State) ->
                                     [Partition, OriginalDCId, NewTimestamp])
                                 end, Partitions)
                 end, Nodes),
+  ?DEBUG_LOG("in internal replay remote, after clock update."),
   io:format("~n Replayed the remote event ~p on: ~p. ~n", [Event, EventNode]),
   State.
