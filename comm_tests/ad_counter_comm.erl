@@ -38,8 +38,6 @@ main_test(Node1, Node2, Node3) ->
 
   Vals = [ad_counter:get_val(Node, Ad, Time) || Node <- [Node1, Node2, Node3]],
 
-  ?DEBUG_LOG(io_lib:format("Vals: ~p", [Vals])),
-
   Quiescence_val = lists:usort(Vals),
   ?assertMatch(Quiescence_val, [hd(Vals)]),
   pass.
@@ -47,20 +45,16 @@ main_test(Node1, Node2, Node3) ->
 dc1_txns(Node, Ad, _ReplyTo, ST) ->
   {_Res1, CT1} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
   {Res2, _CT2} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
-  ?DEBUG_LOG(io_lib:format("Res2 on dc1: ~w", [Res2])),
   CT1.
 
 dc2_txns(Node, Ad, _ReplyTo, ST) ->
   {_Res1, CT1} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
   {Res2, CT2} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
-  ?DEBUG_LOG(io_lib:format("Res2 on dc2: ~w", [Res2])),
   vc_max(CT1, CT2).
 
 dc3_txns(Node, Ad, _ReplyTo, ST) ->
-  ?DEBUG_LOG(io_lib:format("ST in dc3: ~w~n",[dict:to_list(ST)])),
   {_Res1, _CT1} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
   {Res2, CT2} = comm_test:event(?MODULE, [1, Node, ignore, [Ad]]),
-  ?DEBUG_LOG(io_lib:format("Res2 on dc3: ~w", [Res2])),
   CT2.
 
 %%%====================================

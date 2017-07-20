@@ -39,10 +39,6 @@ main_test(Node1, Node2, Node3) ->
 
     {_Re, CT} = comm_test:event(?MODULE, [2, Node1, ignore, [Wallet, 26500]]),
 
-    ?DEBUG_LOG(io_lib:format("~n^^^^^^^^^^CT: ~w^^^^^^^^^^^~n", [dict:to_list(CT)])),
-    [?DEBUG_LOG(io_lib:format("Wallet Val on node: ~p ==> ~p", [Node, wallet:get_val(Node, Wallet, CT)]))
-        || Node <- [Node1, Node2, Node3]],
-
     [?assertEqual(wallet:get_val(Node, Wallet, CT), 26500) || Node <- [Node1, Node2, Node3]],
 
     CT1 = dc1_txns(Node1, Wallet, CT),
@@ -56,13 +52,8 @@ main_test(Node1, Node2, Node3) ->
     Vals = [wallet:get_val(Node, Wallet, Time) || Node <- [Node1, Node2, Node3]],
     ct:print("Vals: ~w", [Vals]),
 
-    ?DEBUG_LOG(io_lib:format("CT1:~w~nCT2:~w~nCT3:~w~n~nTime:~w~n",
-                [dict:to_list(CT1), dict:to_list(CT2), dict:to_list(CT3), dict:to_list(Time)])),
-    ?DEBUG_LOG(io_lib:format("Val on node 1: ~p", [wallet:get_val(Node1, Wallet, Time)])),
     Quiescence_val = lists:usort(Vals),
     ?assertMatch(Quiescence_val, [hd(Vals)]),
-    ?DEBUG_LOG(io_lib:format("Cookie: ~p, Node: ~p", [erlang:get_cookie(), node()])),
-    ?DEBUG_LOG(io_lib:format("comm test Self: ~p   commander: ~p", [self(), whereis(commander)])),
 
     pass.
 
@@ -113,18 +104,13 @@ handle_event([1, Node, ST, AppArgs]) ->
     {Res1, {_Tx1, CT1}} = wallet:debit(Node, Wallet, N, ST),
     {ok, [Res], _CT} = rpc:call(Node, antidote, read_objects, [ignore, [], [Wallet]]),
 
-    ?DEBUG_LOG(io_lib:format("~n:::::::::::::::::: DEBIT EVENT (1) FOR ::::::::::::::::::::
-            node: ~w ~n ~p ~n WITH RESULT: ~p [~p]", [Node, AppArgs, Res, Res1])),
-
     {Res1, CT1};
 
 handle_event([2, Node, ST, AppArgs]) ->
     [Wallet, N] = AppArgs,
     {Res2, {_Tx2, CT2}} = wallet:credit(Node, Wallet, N, ST),
     {ok, [Res], _CT} = rpc:call(Node, antidote, read_objects, [ignore, [], [Wallet]]),
-    ?DEBUG_LOG(io_lib:format("~n:::::::::::::::::: CREDIT EVENT (2) FOR ::::::::::::::::::::
-            node: ~w ~p~nWITH RESULT:~p [~p]~n at time ~p", [Node, AppArgs, Res, Res2, CT2])),
-
+    
     {Res2, CT2};
 
 handle_event([3, Node, ST, AppArgs]) ->

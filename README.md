@@ -66,7 +66,6 @@ Compile the SUT, and then to verify the SUT using the specified test case, run:
 		```
 * `TESTNAME` is the same name you used when creating a new test case.
 
-
 ## References
 [1] [Antidote key-value data store](https://github.com/SyncFree/antidote)
 
