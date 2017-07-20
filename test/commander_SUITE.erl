@@ -83,6 +83,8 @@ init_per_suite(Config) ->
     Cli_Clusters = test_utils:start_sut_nodes(Clusters, Config),
     SUTNodes = [SUTN || {SUTN, _Cluster} <- Cli_Clusters],
 
+    Cli_DCs = get_cli_dcs(Cli_Clusters),
+
     test_utils:set_test_node(Clusters),
     ?DEBUG_LOG("Passed nodes initialization!"),
     {ok, _} = application:ensure_all_started(commander),
@@ -95,7 +97,8 @@ init_per_suite(Config) ->
         {scheduler, Scheduler},
         {clusters, Clusters},
         {sut_nodes, SUTNodes},
-        {client_clusters, Cli_Clusters}|Config].
+        {client_clusters, Cli_Clusters},
+        {client_dcs, Cli_DCs}|Config].
 
 end_per_suite(Config) ->
     Config.
@@ -157,3 +160,10 @@ comm_check(Config) ->
             commander:stop(),
             ct:print("Commander stoped on: ~p", [node()])
     end.
+
+get_cli_dcs(Cli_Clusters) ->
+    lists:foldl(fun({Client, AntNodes}, Res) ->
+                    Node = hd(AntNodes),
+                    DC = rpc:call(Node, dc_utilities, get_my_dc_id, []),
+                    Res ++ [{Client, DC}]
+                end, [], Cli_Clusters).

@@ -315,9 +315,26 @@ handle_call({get_upstream_event_data, {Data}}, _From, State) ->
 %%    ?DEBUG_LOG(io_lib:format("Commander:::::Get upstream event data to record: ~p.", [Data])),
     ?DEBUG_LOG("Commander:::::Get upstream event data to record."),
     {_M, [EvNo | Tail ]} = Data,
-    [EventNode, ClockPrgm, _] = Tail,
+    [EventNode, ClockPrgm1, _] = Tail,
     NewUpstreamEvent = #upstream_event{event_no = EvNo, event_node = EventNode, event_data = Data, event_txns = []},
     DepClockPrgm = State#comm_state.dep_clock_prgm,
+
+    ClockPrgm =
+        case ClockPrgm1 of
+            [_|_] ->
+                CliDCs = proplists:get_value(client_dcs, State#comm_state.ct_config),
+                lists:foldl(fun({CliNode, N}, Res) ->
+                                DC = proplists:get_value(CliNode, CliDCs),
+                                dict:store(DC, N, Res)
+                            end, dict:new(), ClockPrgm1);
+            ignore ->
+                ClockPrgm1;
+            Else ->
+                %% sanity check
+                true = element(1, Else) =:= dict,
+                ClockPrgm1
+        end,
+
     NewDepClockPrgm = dict:store(none, [{st, ClockPrgm}, {ct, unknown}], DepClockPrgm),
     NewUpstreamEvents = State#comm_state.upstream_events ++ [NewUpstreamEvent],
 
@@ -528,32 +545,46 @@ display_counter_example(Scheduler, Exception, Reason) ->
 
 %%% Extract transactions dependency
 extract_txns_dependency(DepClockPrgm) ->
-%%  print_dict_of_dict(DepClockPrgm),
-  NewDepTxnsPrgm =
-    dict:fold(fun(TxId, [{st, ST}, {ct, _CT}], AllDepTxns) ->
-                case dict:size(ST) of
-                  0 ->
-                    D1 = dict:store(TxId, [], AllDepTxns),
-                    D1;
-                  _Else ->
-                    KeysDepClock = dict:fetch_keys(DepClockPrgm),
-                    Dependencies =
-                    lists:foldl(fun(T, DepTxns) ->
-                                  {ok, [{st, _T_ST}, {ct, T_CT}]} = dict:find(T, DepClockPrgm),
-                                  case (TxId /= T) and vectorclock:ge(ST, T_CT) of
-                                    true ->
-                                      DepTxns ++ [T];
-                                    false ->
-                                      DepTxns
-                                  end
-                                end, [], KeysDepClock),
-                    D2 = dict:store(TxId, Dependencies, AllDepTxns),
-                    D2
-                end
-              end, dict:new(), DepClockPrgm),
-
-%%  print_dict(NewDepTxnsPrgm),
-  NewDepTxnsPrgm.
+    NewDepTxnsPrgm =
+        dict:fold(fun(TxId, [{st, ST}, {ct, _CT}], AllDepTxns) ->
+                    case dict:size(ST) of
+                        0 ->
+                            dict:store(TxId, [], AllDepTxns);
+                        _Else ->
+                            KeysDepClock = dict:fetch_keys(DepClockPrgm),
+                            {_, N} = hd(dict:to_list(ST)),
+                            if
+                                N < 100000000000000 ->
+                                    Deps = lists:foldl(fun(T, DepTxns) ->
+                                                        {ok, [{st, T_ST}, {ct, _T_CT}]} = dict:find(T, DepClockPrgm),
+                                                        case dict:size(T_ST) of
+                                                            0 -> DepTxns;
+                                                            _Else ->
+                                                                case (TxId /= T) and vectorclock:gt(ST, T_ST) of
+                                                                    true ->
+                                                                        DepTxns ++ [T];
+                                                                    false ->
+                                                                        DepTxns
+                                                                end
+                                                        end
+                                                       end, [], KeysDepClock),
+                                    dict:store(TxId, Deps, AllDepTxns);
+                                true ->
+                                    Dependencies =
+                                        lists:foldl(fun(T, DepTxns) ->
+                                            {ok, [{st, _T_ST}, {ct, T_CT}]} = dict:find(T, DepClockPrgm),
+                                            case (TxId /= T) and vectorclock:ge(ST, T_CT) of
+                                                true ->
+                                                    DepTxns ++ [T];
+                                                false ->
+                                                    DepTxns
+                                            end
+                                                    end, [], KeysDepClock),
+                                    dict:store(TxId, Dependencies, AllDepTxns)
+                            end
+                    end
+                  end, dict:new(), DepClockPrgm),
+    NewDepTxnsPrgm.
 
 %%print_dict(D) ->
 %%  Keys = dict:fetch_keys(D),
