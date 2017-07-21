@@ -540,7 +540,57 @@ disconnect_dcs(Clusters) ->
                   end, Clusters),
     ct:print("DC clusters disconnected!").
 
-start_sut_node(SUTNodeName, Cluster, Config) ->
+start_sut_node(any, SUTNodeName, Cluster, Config) ->
+    BT = proplists:get_value(bench_type, Config),
+    start_sut_node(BT, SUTNodeName, Cluster, Config);
+
+start_sut_node(synthetic, SUTNodeName, Cluster, Config) ->
+    CodePath = lists:filter(fun filelib:is_dir/1, code:get_path()),
+    %% have the slave nodes monitor the runner node, so they can't outlive it
+    NodeConfig = [
+        {monitor_master, true},
+        {erl_flags, "-smp"},
+        {startup_functions, [
+            {code, set_path, [CodePath]}
+        ]}],
+    case ct_slave:start(SUTNodeName, NodeConfig) of
+        {ok, SUTNode} ->
+            PrivDir = proplists:get_value(priv_dir, Config),
+            NodeDir = filename:join([PrivDir, SUTNode]),
+            NodeLogDir = NodeDir ++ "/log/",
+            ok = filelib:ensure_dir(NodeLogDir),
+
+            ok = rpc:call(SUTNode, application, set_env, [lager, log_root, NodeDir]),
+            ok = rpc:call(SUTNode, application, load, [lager]),
+            {ok, _} = rpc:call(SUTNode, application, ensure_all_started, [lager]),
+
+            SUTDir = comm_config:get(sut_dir),
+            AppName = comm_config:get(sut_app),
+
+            ok = rpc:call(SUTNode, application, set_env, [AppName, antidote_node, hd(Cluster)]),
+
+            LibsDir = filename:join([SUTDir, "_build", "default/lib"]),
+            {ok, Libs1} = file:list_dir(LibsDir),
+            Libs = lists:filter(fun(Elem) ->
+                                    string:sub_string(Elem, 1, 1) =/= "."
+                                end, Libs1),
+            lists:foreach(fun(Lib) ->
+                LibDir = filename:join([LibsDir, Lib, "ebin"]),
+                true = rpc:call(SUTNode, code, add_path, [LibDir])
+                          end, Libs),
+
+            ok = rpc:call(SUTNode, application, load, [AppName]),
+            {ok, _} = rpc:call(SUTNode, application, ensure_all_started, [AppName]),
+            ct:print("Application ~p started on node ~p", [AppName, SUTNode]),
+
+            SUTNode;
+        {error, Reason, SUTNode} ->
+            ct:print("Error starting node ~w, reason ~w, will retry", [SUTNode, Reason]),
+            ct_slave:stop(SUTNodeName),
+            start_sut_node(synthetic, SUTNodeName, Cluster, Config)
+    end;
+
+start_sut_node(realistic, SUTNodeName, Cluster, Config) ->
     CodePath = lists:filter(fun filelib:is_dir/1, code:get_path()),
     %% have the slave nodes monitor the runner node, so they can't outlive it
     NodeConfig = [
@@ -596,7 +646,7 @@ start_sut_node(SUTNodeName, Cluster, Config) ->
         {error, Reason, SUTNode} ->
             ct:print("Error starting node ~w, reason ~w, will retry", [SUTNode, Reason]),
             ct_slave:stop(SUTNodeName),
-            start_sut_node(SUTNodeName, Cluster, Config)
+            start_sut_node(realistic, SUTNodeName, Cluster, Config)
     end.
 
 start_sut_nodes(Clusters, Config) ->
@@ -608,6 +658,6 @@ start_sut_nodes(Clusters, Config) ->
                     end, {0, []}, Clusters),
 
     pmap(fun({NodeName, Cluster}) ->
-            SUTNode = start_sut_node(NodeName, Cluster, Config),
+            SUTNode = start_sut_node(any, NodeName, Cluster, Config),
             {SUTNode, Cluster}
           end, Node_Cluster).

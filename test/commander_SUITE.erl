@@ -79,8 +79,17 @@ init_per_suite(Config) ->
     Clusters = test_utils:set_up_clusters_common(Config),
     test_utils:clocksi_check(Clusters),
 
+    IsSynthetic = lists:member(AppName, [wallet, ad_counter, b2b_orders]),
+    BenchType =
+        if
+            IsSynthetic ->
+                synthetic;
+            true ->
+                realistic
+        end,
+
     %% Setup SUT nodes
-    Cli_Clusters = test_utils:start_sut_nodes(Clusters, Config),
+    Cli_Clusters = test_utils:start_sut_nodes(Clusters, [{bench_type, BenchType}|Config]),
     SUTNodes = [SUTN || {SUTN, _Cluster} <- Cli_Clusters],
 
     Cli_DCs = get_cli_dcs(Cli_Clusters),
@@ -98,7 +107,8 @@ init_per_suite(Config) ->
         {clusters, Clusters},
         {sut_nodes, SUTNodes},
         {client_clusters, Cli_Clusters},
-        {client_dcs, Cli_DCs}|Config].
+        {client_dcs, Cli_DCs},
+        {bench_type, BenchType}|Config].
 
 end_per_suite(Config) ->
     Config.
