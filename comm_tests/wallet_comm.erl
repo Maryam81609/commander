@@ -18,28 +18,24 @@
 
 -define(INIT_VAL, 26500).
 
-%% TODO: allow the programmer to specify
-%% the number of clusters and the number
-%% of nodes in each
 check(Config) ->
-    Clusters = proplists:get_value(clusters, Config),
-    [Node1, Node2, Node3 | _Nodes] =  [ hd(Cluster)|| Cluster <- Clusters ],
+    ct:print("Entered check!"),
+    [Node1, Node2, Node3] = proplists:get_value(sut_nodes, Config),
 
-    main_test(Node1, Node2, Node3).
+    main_test([Node1, Node2, Node3]),
 
-main_test(Node1, Node2, Node3) ->
+    pass.
+
+main_test([Node1, Node2, Node3]) ->
     Key = wallet_key,
     Wallet = {Key, antidote_crdt_counter, bucket},
-
-    TestNode = list_to_atom(os:getenv("TESTNODE")),
-    true = rpc:call(TestNode, lists, member, [commander, erlang:registered()]),
 
     %%% Specify invariant objects
     comm_test:objects(?MODULE, [Wallet]),
 
     {_Re, CT} = comm_test:event(?MODULE, [2, Node1, ignore, [Wallet, 26500]]),
 
-    [?assertEqual(wallet:get_val(Node, Wallet, CT), 26500) || Node <- [Node1, Node2, Node3]],
+    [?assertEqual(rpc:call(Node, wallet, get_val, [Node, Wallet, CT]), 26500) || Node <- [Node1, Node2, Node3]],
 
     CT1 = dc1_txns(Node1, Wallet, CT),
     CT2 = dc2_txns(Node2, Wallet, CT),
@@ -49,7 +45,7 @@ main_test(Node1, Node2, Node3) ->
         CT1,
         dict:merge(fun(_K, T1, T2) -> max(T1, T2) end, CT2, CT3)),
 
-    Vals = [wallet:get_val(Node, Wallet, Time) || Node <- [Node1, Node2, Node3]],
+    Vals = [rpc:call(Node, wallet, get_val, [Node, Wallet, Time]) || Node <- [Node1, Node2, Node3]],
     ct:print("Vals: ~w", [Vals]),
 
     Quiescence_val = lists:usort(Vals),
@@ -101,25 +97,21 @@ dc3_txns(Node, Wallet, ST) ->
 %%%====================================
 handle_event([1, Node, ST, AppArgs]) ->
     [Wallet, N] = AppArgs,
-    {Res1, {_Tx1, CT1}} = wallet:debit(Node, Wallet, N, ST),
-    {ok, [Res], _CT} = rpc:call(Node, antidote, read_objects, [ignore, [], [Wallet]]),
-
+    {Res1, {_Tx1, CT1}} = rpc:call(Node, wallet, debit, [Node, Wallet, N, ST]),
     {Res1, CT1};
 
 handle_event([2, Node, ST, AppArgs]) ->
     [Wallet, N] = AppArgs,
-    {Res2, {_Tx2, CT2}} = wallet:credit(Node, Wallet, N, ST),
-    {ok, [Res], _CT} = rpc:call(Node, antidote, read_objects, [ignore, [], [Wallet]]),
-    
+    {Res2, {_Tx2, CT2}} = rpc:call(Node, wallet, credit, [Node, Wallet, N, ST]),
     {Res2, CT2};
 
 handle_event([3, Node, ST, AppArgs]) ->
     [Wallet1, Wallet2, N] = AppArgs,
-    CT = wallet:transfer(Node, Wallet1, Wallet2, N, ST),
+    CT = rpc:call(Node, wallet, transfer, [Node, Wallet1, Wallet2, N, ST]),
     CT.
 
 handle_object_invariant(Node, [Wallet]) ->
-    WalletVal =  wallet:get_val(Node, Wallet, ignore),
+    WalletVal =  rpc:call(Node, wallet, get_val, [Node, Wallet, ignore]),
     ct:print("~nWallet value on ~p:~p~n", [Node, WalletVal]),
     ?assert(WalletVal >= 0),
     true.
