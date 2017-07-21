@@ -35,7 +35,7 @@ main_test([Node1, Node2, Node3]) ->
 
     {_Re, CT} = comm_test:event(?MODULE, [2, Node1, ignore, [Wallet, 26500]]),
 
-    [?assertEqual(rpc:call(Node, wallet, get_val, [Node, Wallet, CT]), 26500) || Node <- [Node1, Node2, Node3]],
+    [?assertEqual(rpc:call(Node, wallet, get_val, [Wallet, CT]), 26500) || Node <- [Node1, Node2, Node3]],
 
     CT1 = dc1_txns(Node1, Wallet, CT),
     CT2 = dc2_txns(Node2, Wallet, CT),
@@ -45,7 +45,7 @@ main_test([Node1, Node2, Node3]) ->
         CT1,
         dict:merge(fun(_K, T1, T2) -> max(T1, T2) end, CT2, CT3)),
 
-    Vals = [rpc:call(Node, wallet, get_val, [Node, Wallet, Time]) || Node <- [Node1, Node2, Node3]],
+    Vals = [rpc:call(Node, wallet, get_val, [Wallet, Time]) || Node <- [Node1, Node2, Node3]],
     ct:print("Vals: ~w", [Vals]),
 
     Quiescence_val = lists:usort(Vals),
@@ -97,21 +97,21 @@ dc3_txns(Node, Wallet, ST) ->
 %%%====================================
 handle_event([1, Node, ST, AppArgs]) ->
     [Wallet, N] = AppArgs,
-    {Res1, {_Tx1, CT1}} = rpc:call(Node, wallet, debit, [Node, Wallet, N, ST]),
+    {Res1, {_Tx1, CT1}} = rpc:call(Node, wallet, debit, [Wallet, N, ST]),
     {Res1, CT1};
 
 handle_event([2, Node, ST, AppArgs]) ->
     [Wallet, N] = AppArgs,
-    {Res2, {_Tx2, CT2}} = rpc:call(Node, wallet, credit, [Node, Wallet, N, ST]),
+    {Res2, {_Tx2, CT2}} = rpc:call(Node, wallet, credit, [Wallet, N, ST]),
     {Res2, CT2};
 
 handle_event([3, Node, ST, AppArgs]) ->
     [Wallet1, Wallet2, N] = AppArgs,
-    CT = rpc:call(Node, wallet, transfer, [Node, Wallet1, Wallet2, N, ST]),
+    CT = rpc:call(Node, wallet, transfer, [Wallet1, Wallet2, N, ST]),
     CT.
 
 handle_object_invariant(Node, [Wallet]) ->
-    WalletVal =  rpc:call(Node, wallet, get_val, [Node, Wallet, ignore]),
+    WalletVal =  rpc:call(Node, wallet, get_val, [Wallet, ignore]),
     ct:print("~nWallet value on ~p:~p~n", [Node, WalletVal]),
     ?assert(WalletVal >= 0),
     true.
