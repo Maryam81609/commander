@@ -11,15 +11,18 @@
 -behavior(comm_test).
 
 -include_lib("eunit/include/eunit.hrl").
-%% API
+
 -export([check/1, handle_event/1, handle_object_invariant/2]).
 
 check(Config) ->
-  Clusters = proplists:get_value(clusters, Config),
-  [Node1, Node2, Node3 | _Nodes] =  [ hd(Cluster)|| Cluster <- Clusters ],
-  main_test(Node1, Node2, Node3).
+  ct:print("Entered check!"),
+  [Node1, Node2, Node3] = proplists:get_value(sut_nodes, Config),
 
-main_test(Node1, Node2, Node3) ->
+  main_test([Node1, Node2, Node3]),
+
+  pass.
+
+main_test([Node1, Node2, Node3]) ->
 %%  MaxView = 5,
   Key = ad_key,
   Ad = {Key, antidote_crdt_counter, bucket},
@@ -36,7 +39,7 @@ main_test(Node1, Node2, Node3) ->
                       CT1,
                       dict:merge(fun(_K, T1, T2) -> max(T1, T2) end, CT2, CT3)),
 
-  Vals = [ad_counter:get_val(Node, Ad, Time) || Node <- [Node1, Node2, Node3]],
+  Vals = [rpc:call(Node, ad_counter, get_val, [Ad, Time]) || Node <- [Node1, Node2, Node3]],
 
   Quiescence_val = lists:usort(Vals),
   ?assertMatch(Quiescence_val, [hd(Vals)]),
@@ -44,17 +47,17 @@ main_test(Node1, Node2, Node3) ->
 
 dc1_txns(Node, Ad, _ReplyTo, ST) ->
   {_Res1, CT1} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
-  {Res2, _CT2} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
+  {_Res2, _CT2} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
   CT1.
 
 dc2_txns(Node, Ad, _ReplyTo, ST) ->
   {_Res1, CT1} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
-  {Res2, CT2} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
+  {_Res2, CT2} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
   vc_max(CT1, CT2).
 
 dc3_txns(Node, Ad, _ReplyTo, ST) ->
   {_Res1, _CT1} = comm_test:event(?MODULE, [1, Node, ST, [Ad]]),
-  {Res2, CT2} = comm_test:event(?MODULE, [1, Node, ignore, [Ad]]),
+  {_Res2, CT2} = comm_test:event(?MODULE, [1, Node, ignore, [Ad]]),
   CT2.
 
 %%%====================================
@@ -62,12 +65,11 @@ dc3_txns(Node, Ad, _ReplyTo, ST) ->
 %%%====================================
 handle_event([1, Node, ST, AppArgs]) ->
   [Ad] = AppArgs,
-  {Res1, {_Tx1, CT1}} = ad_counter:view_ad(Node, Ad, ST),
+  {Res1, {_Tx1, CT1}} = rpc:call(Node, ad_counter, view_ad, [Ad, ST]),
   {Res1, CT1}.
 
 handle_object_invariant(Node, [Ad]) ->
-  AdVal = ad_counter:get_val(Node, Ad, ignore),
-  %%% if assert fails inform commander to provide a counter example
+  AdVal = rpc:call(Node, ad_counter, get_val, [Ad, ignore]),
   ct:print("~nAd value on ~p:~p~n", [Node, AdVal]),
   ?assert(AdVal =< 5 ),
   true.
