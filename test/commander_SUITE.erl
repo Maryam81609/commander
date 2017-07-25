@@ -40,20 +40,10 @@ init_per_suite(Config) ->
     SchParamStr = os:getenv("SCHPARAM"),
     TestName = os:getenv("TEST"),
     CommDir = os:getenv("COMMDIR"),
-    DefaultTestPath = os:getenv("TESTPATH"),
-    DefaultSUTPath = os:getenv("SUTPATH"),
-    DefaultBound = os:getenv("BOUND"),
+    AppName = list_to_atom(TestName),
 
-    ConfigData = {commander, [
-        {sut_app, list_to_atom(TestName)},
-        {sut_dir, DefaultSUTPath},
-        {test_dir, DefaultTestPath},
-        {bound, list_to_integer(DefaultBound)}]},
-
-    comm_config:init(ConfigData),
-
-    TestDir = comm_config:get(test_dir),
-    AppName = comm_config:get(sut_app),
+    TestDir = comm_config:get_sut(test_dir, AppName),
+    SUTDir = comm_config:get_sut(sut_dir, AppName),
     Bound = comm_config:get(bound),
 
     ?DEBUG_LOG("Read application env vars!"),
@@ -88,8 +78,15 @@ init_per_suite(Config) ->
                 realistic
         end,
 
+    Config1 = [
+        {bound, Bound},
+        {test_dir, TestDir},
+        {sut_dir, SUTDir},
+        {sut_app, AppName},
+        {bench_type, BenchType}|Config],
+
     %% Setup SUT nodes
-    Cli_Clusters = test_utils:start_sut_nodes(Clusters, [{bench_type, BenchType}|Config]),
+    Cli_Clusters = test_utils:start_sut_nodes(Clusters, Config1),
     SUTNodes = [SUTN || {SUTN, _Cluster} <- Cli_Clusters],
 
     Cli_DCs = get_cli_dcs(Cli_Clusters),
@@ -98,17 +95,14 @@ init_per_suite(Config) ->
     ?DEBUG_LOG("Passed nodes initialization!"),
     {ok, _} = application:ensure_all_started(commander),
 
-    [{app, AppName},
-        {bound, Bound},
-        {comm_dir, CommDir},
+    [{comm_dir, CommDir},
         {test_name, TestName},
         {sch_param, SchParam},
         {scheduler, Scheduler},
         {clusters, Clusters},
         {sut_nodes, SUTNodes},
         {client_clusters, Cli_Clusters},
-        {client_dcs, Cli_DCs},
-        {bench_type, BenchType}|Config].
+        {client_dcs, Cli_DCs}|Config1].
 
 end_per_suite(Config) ->
     Config.
