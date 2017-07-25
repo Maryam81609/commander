@@ -564,8 +564,8 @@ start_sut_node(synthetic, SUTNodeName, Cluster, Config) ->
             ok = rpc:call(SUTNode, application, load, [lager]),
             {ok, _} = rpc:call(SUTNode, application, ensure_all_started, [lager]),
 
-            SUTDir = comm_config:get(sut_dir),
-            AppName = comm_config:get(sut_app),
+            SUTDir = proplists:get_value(sut_dir, Config),
+            AppName = proplists:get_value(sut_app, Config),
 
             ok = rpc:call(SUTNode, application, set_env, [AppName, antidote_node, hd(Cluster)]),
 
@@ -628,8 +628,8 @@ start_sut_node(realistic, SUTNodeName, Cluster, Config) ->
             true = rpc:call(SUTNode, os, putenv, ["ANTIDOTE_ADDRESSES", AntAdds]),
             true = rpc:call(SUTNode, os, putenv, ["ANTIDOTE_PB_PORTS", AntPorts]),
 
-            SUTDir = comm_config:get(sut_dir),
-            AppName = comm_config:get(sut_app),
+            SUTDir = proplists:get_value(sut_dir, Config),
+            AppName = proplists:get_value(sut_app, Config),
 
             LibsDir = filename:join([SUTDir, "_build", "default/lib"]),
             {ok, Libs} = file:list_dir(LibsDir),
@@ -650,7 +650,7 @@ start_sut_node(realistic, SUTNodeName, Cluster, Config) ->
     end.
 
 start_sut_nodes(Clusters, Config) ->
-    AppName = comm_config:get(sut_app),
+    AppName = proplists:get_value(sut_app, Config),
     {_, Node_Cluster} =
         lists:foldl(fun(Cluster, {I, Node_AntCluster}) ->
                         SUTNodeName = list_to_atom(atom_to_list(AppName) ++ integer_to_list(I + 1)),
