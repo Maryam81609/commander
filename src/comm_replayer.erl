@@ -94,7 +94,12 @@ handle_cast(replay_next_async, State) ->
   NewState = case IsEndSch of
                 false ->
                   NextEvent = get_next_runnable_event(Scheduler),
-                  replay(NextEvent, State);
+                  try replay(NextEvent, State) of
+                      Res -> Res
+                  catch
+                      Exception:Reason ->
+                          commander:display_counter_example(Scheduler, Exception, Reason)
+                  end;
                 true ->
                   ok = commander:test_passed(),
                   commander:run_next_test1(),
@@ -169,7 +174,7 @@ replay(local, Event, State) ->
   {TestModule, [EvNo, Node, _ST, AppArgs]} = LTxnData,
   TestModule:handle_event([EvNo, Node, ignore, AppArgs]),
   NewState = State#replay_state{latest_txids =[OrigTxId]},
-  io:format("~n Replayed a local event no ~p on node: ~p. ~n", [EvNo, Node]),
+%%  ct:print("~n Replayed a local event no ~p on node: ~p. ~n", [EvNo, Node]),
   NewState;
 
 replay(remote, Event, State) ->
@@ -206,5 +211,5 @@ replay(remote, Event, State) ->
                                 end, Partitions)
                 end, Nodes),
   ?DEBUG_LOG("in internal replay remote, after clock update."),
-  io:format("~n Replayed the remote event ~p on: ~p. ~n", [Event, EventNode]),
+%%  ct:print("~n Replayed the remote event ~p on: ~p. ~n", [Event, EventNode]),
   State.
