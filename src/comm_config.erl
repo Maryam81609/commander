@@ -16,7 +16,6 @@
 
 init(Data) ->
     ConfFilename = configFilename(),
-    ct:print(ConfFilename),
     case filelib:is_regular(ConfFilename) of
         true ->
             skip;

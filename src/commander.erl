@@ -30,7 +30,8 @@
         set_server_client/1,
         set_txn_partial_num/1,
         reset_txn_ack_num/2,
-        get_txns_data/0]).
+        get_txns_data/0,
+        display_counter_example/3]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -242,7 +243,6 @@ handle_call({update_upstream_event_data, {Data}}, _From, State) ->
     %% TODO: Handle the case if the txn is aborted or there is an error (Data =/= {txnid, _})
 %%    ?DEBUG_LOG(io_lib:format("Commander::::: update upstream event data ~p.", [Data])),
     {TxId, InterDcTxn, DCID, CommitTime, SnapshotTime, _Partition} = Data,
-
     TxnPartNum = State#comm_state.txn_partial_num,
 %%    ?DEBUG_LOG(io_lib:format("TxnPartNum: ~p", [dict:to_list(TxnPartNum)])),
     PartNum = dict:fetch(TxId, TxnPartNum),
@@ -536,7 +536,7 @@ display_counter_example(Scheduler, Exception, Reason) ->
   ok = comm_utilities:write_to_file("counter_example",
     io_lib:format("~n~w~nCE length: ~p~n", [CounterExample, length(CounterExample)]), append),
   ct:print("===========================Counter Example==========================="),
-  ct:print("~w", [CounterExample]),
+%%  ct:print("~w", [CounterExample]),
   ct:print("Counter example length (written to commanderDir/schedules/TestName): ~p", [length(CounterExample)]),
   ?DEBUG_LOG(io_lib:format("~nCounter example length (written to commanderDir/schedules/TestName): ~p~n",
       [length(CounterExample)])),

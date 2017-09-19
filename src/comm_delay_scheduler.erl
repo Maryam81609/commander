@@ -104,8 +104,10 @@ handle_call(print_delay_sequence, _From, State) ->
   Delayer = State#delay_schlr_state.delayer,
   case Delayer of
     regular ->
+      ct:print("regular, ~w~n", [State#delay_schlr_state.curr_delay_seq]),
       io:format("regular, ~w~n", [State#delay_schlr_state.curr_delay_seq]);
     delay ->
+      ct:print("regular, ~w; delay, ~w~n", [State#delay_schlr_state.curr_delay_seq, State#delay_schlr_state.curr_delayed_delay_seq]),
       io:format("regular, ~w; delay, ~w~n", [State#delay_schlr_state.curr_delay_seq, State#delay_schlr_state.curr_delayed_delay_seq])
   end,
   {reply, ok, State};
