@@ -1,4 +1,4 @@
-# Commander: A Runtime Verification Tool for Antidote Applications
+# Commander: An Execution-based Model Checker for Antidote Applications
 Commander explores all possible behaviors in a written test scenario by the developer to check the specified invariants in Antidote [1] applications. It considers both interaction between the application and Antidote data centers (DCs) and between two different DCs while propagating the updates.
 Commander has two phases: *recorder* and *replayer*. It first runs the test case and records all calls to the SUT API functions in addition to deliveries of those update logs to remote DCs. Either of a call to the SUT API function or delivering its log to a remote DC is referred as an event. Then, in *replay* phase, it exercises all possible permutations of the recorded trace of events, preserving the causality between events. Commander employs two schedulers: *delay* and *random* schedulers. Developers can tell the Commander which scheduler to use. 
 
@@ -46,7 +46,19 @@ To build Commander, run:
 ```bash
 make all
 ```
-Compile the SUT, and then to verify the SUT using the specified test case, run:
+Add SUT and test case path to the `commander.config` file:
+
+```Erlang
+{commander,[
+	{suts,[
+		{wallet,[
+			{sut_dir,"/Users/maryam/Research/workspace/commander/benchmarks/wallet/"},
+			{test_dir,"/Users/maryam/Research/workspace/commander/comm_tests/"}]},
+		{ad_counter,[
+			{sut_dir,"/Users/maryam/Research/workspace/commander/benchmarks/ad_counter/"},
+			{test_dir,"/Users/maryam/Research/workspace/commander/comm_tests/"}]}]}]}.
+```
+To verify the SUT using the specified test case, run:
 
 ```bash
 ./commander.sh SCHEDULER SCHEDULER_PARAM TESTNAME
