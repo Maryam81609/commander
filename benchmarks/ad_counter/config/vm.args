@@ -1,0 +1,6 @@
+-sname ad_counter
+
+-setcookie ad_counter_cookie
+
++K true
++A30
