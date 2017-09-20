@@ -40,12 +40,15 @@ Every test case must implement `comm_test` behavior. This behavior provides two 
 * `handle_event([EventNo, Node, CausalClock, AppArgs])` is called by Commander in the replay phase, using the same arguments already passed to `event/2`.
 * `check/1` is the entry point of the test module in the record phase. This function always returns `pass`.
 
-## Run Commander for the given test case
-To build Commander, run:
+## Build Commander
+### Requirements
+[Install Erlang](http://github.com/kerl/kerl) (>=18.3)
 
+###Build
 ```bash
 make all
 ```
+## Run Commander for the given test case
 Add SUT and test case path to the `commander.config` file:
 
 ```Erlang
