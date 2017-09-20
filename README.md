@@ -50,13 +50,13 @@ Add SUT and test case path to the `commander.config` file:
 
 ```Erlang
 {commander,[
-	{suts,[
-		{wallet,[
-			{sut_dir,"/Users/maryam/Research/workspace/commander/benchmarks/wallet/"},
-			{test_dir,"/Users/maryam/Research/workspace/commander/comm_tests/"}]},
-		{ad_counter,[
-			{sut_dir,"/Users/maryam/Research/workspace/commander/benchmarks/ad_counter/"},
-			{test_dir,"/Users/maryam/Research/workspace/commander/comm_tests/"}]}]}]}.
+    {suts,[
+        {wallet,[
+            {sut_dir,"/Users/maryam/Research/workspace/commander/benchmarks/wallet/"},
+            {test_dir,"/Users/maryam/Research/workspace/commander/comm_tests/"}]},
+        {ad_counter,[
+            {sut_dir,"/Users/maryam/Research/workspace/commander/benchmarks/ad_counter/"},
+            {test_dir,"/Users/maryam/Research/workspace/commander/comm_tests/"}]}]}]}.
 ```
 To verify the SUT using the specified test case, run:
 
