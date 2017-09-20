@@ -46,6 +46,10 @@ init_per_suite(Config) ->
     SUTDir = comm_config:get_sut(sut_dir, AppName),
     Bound = comm_config:get(bound),
 
+    %%% Compile SUT
+    ok = file:set_cwd(SUTDir),
+    os:cmd("./rebar3 compile"),
+
     ?DEBUG_LOG("Read application env vars!"),
     ?DEBUG_LOG(io_lib:format("Test path: ~p", [TestDir])),
     ?DEBUG_LOG(io_lib:format("Scheduler: ~p", [SchedulerStr])),
