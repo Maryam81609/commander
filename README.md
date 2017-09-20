@@ -44,7 +44,7 @@ Every test case must implement `comm_test` behavior. This behavior provides two 
 ### Requirements
 [Install Erlang](http://github.com/kerl/kerl) (>=18.3)
 
-###Build
+### Build
 ```bash
 make all
 ```
