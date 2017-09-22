@@ -11,10 +11,19 @@
 debit(Wallet, Amount, ST) ->
     {ok, AntNode} = application:get_env(?APP, ?DB_NODE),
     {ok, Tx1} = rpc:call(AntNode, antidote, start_transaction, [ST, []]),
-    ok = rpc:call(AntNode, antidote, update_objects, [[{Wallet, decrement, Amount}], Tx1]),
-    {ok, [Res1]} = rpc:call(AntNode, antidote, read_objects, [[Wallet], Tx1]),
-    {ok, CT1} = rpc:call(AntNode, antidote, commit_transaction, [Tx1]),
-    {Res1, {Tx1, CT1}}.
+    {ok, [CurrVal]} = rpc:call(AntNode, antidote, read_objects, [[Wallet], Tx1]),
+    if
+        CurrVal >= Amount ->
+            ok = rpc:call(AntNode, antidote, update_objects, [[{Wallet, decrement, Amount}], Tx1]),
+            {ok, [Res1]} = rpc:call(AntNode, antidote, read_objects, [[Wallet], Tx1]),
+            {ok, CT1} = rpc:call(AntNode, antidote, commit_transaction, [Tx1]),
+            {Res1, {Tx1, CT1}};
+        true ->
+            ok = rpc:call(AntNode, antidote, update_objects, [[{Wallet, increment, 1}, {Wallet, decrement, 1}], Tx1]),
+            {ok, [Res2]} = rpc:call(AntNode, antidote, read_objects, [[Wallet], Tx1]),
+            {ok, CT2} = rpc:call(AntNode, antidote, commit_transaction, [Tx1]),
+            {Res2, {Tx1, CT2}}
+    end.
 
 credit(Wallet, Amount, ST) ->
     {ok, AntNode} = application:get_env(?APP, ?DB_NODE),
