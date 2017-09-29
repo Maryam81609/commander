@@ -104,6 +104,7 @@
 }).
 
 -record(delay_schlr_state, {
+  cons_model :: atom(), %% cc | sr | ec (not supported now)
   event_count_total :: pos_integer(),
   curr_sch :: list(term()),
   dependency :: dict:dict(),
@@ -136,6 +137,7 @@
 }).
 
 -record(rand_schlr_state, {
+    cons_model :: atom(),
   event_count_total :: pos_integer(),
   curr_sch :: list(term()),
   dependency :: dict:dict(),

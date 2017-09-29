@@ -151,7 +151,8 @@ comm_check(Config) ->
     ok = commander:get_clusters(Clusters),
     ?DEBUG_LOG(io_lib:format("Config: ~p", [Config])),
     %%% Do the exhaustive search
-    commander:check(SchParam, Bound),
+    ConsModel = sr, %% cc
+    commander:check(ConsModel, SchParam, Bound),
 
     %%% Receive stop message and teardown commander process
     receive

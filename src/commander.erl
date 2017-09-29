@@ -15,7 +15,7 @@
         get_scheduling_data/0,
         phase/0,
         get_clusters/1,
-        check/2,
+        check/3,
         run_next_test1/0,
         test_initialized/0,
         update_replay_txns_data/3,
@@ -92,8 +92,8 @@ get_app_objects(Mod, Objs) ->
 set_server_client(Cli_Clusters) ->
     gen_server:call(?SERVER, {set_server_client, {Cli_Clusters}}).
 
-check(SchParam, Bound) ->
-  gen_server:cast(?SERVER, {check, {SchParam, Bound}}).
+check(ConsModel, SchParam, Bound) ->
+  gen_server:cast(?SERVER, {check, {ConsModel, SchParam, Bound}}).
 
 run_next_test1() ->
   gen_server:cast(?SERVER, run_next_test1).
@@ -349,7 +349,7 @@ handle_call(get_ct_config, _From, State) ->
     CtConfig = State#comm_state.ct_config,
     {reply, CtConfig, State}.
 
-handle_cast({check,{SchParam, Bound}}, State) ->
+handle_cast({check,{ConsModel, SchParam, Bound}}, State) ->
   {execution, 1, OrigSch} = State#comm_state.initial_exec,
   Scheduler = State#comm_state.scheduler,
   DelayDirection = State#comm_state.delay_direction,
@@ -373,7 +373,7 @@ handle_cast({check,{SchParam, Bound}}, State) ->
 
   OrigSymSch = comm_utilities:get_det_sym_sch(OrigSch),
   TxnsData = State#comm_state.txns_data,
-  comm_replayer:start_link(Scheduler, DelayDirection, SchParam, Bound, TxnsData, NewDepTxnsPrgm, Clusters, DCs, OrigSymSch),
+  comm_replayer:start_link(ConsModel, Scheduler, DelayDirection, SchParam, Bound, TxnsData, NewDepTxnsPrgm, Clusters, DCs, OrigSymSch),
   NewState = State#comm_state{phase = init_test, dep_txns_prgm = NewDepTxnsPrgm},
   comm_replayer:setup_next_test1(),
   {noreply, NewState};

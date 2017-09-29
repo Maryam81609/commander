@@ -34,8 +34,8 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
-start_link([DelayDirection, DelayBound, Bound, DepTxnsPrgm ,DCs, OrigSymSch]) ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [[DelayDirection, DelayBound, Bound, DepTxnsPrgm, DCs, OrigSymSch]], []).
+start_link([ConsModel, DelayDirection, DelayBound, Bound, DepTxnsPrgm ,DCs, OrigSymSch]) ->
+  gen_server:start_link({local, ?SERVER}, ?MODULE, [[ConsModel, DelayDirection, DelayBound, Bound, DepTxnsPrgm, DCs, OrigSymSch]], []).
 
 has_next_schedule() ->
   gen_server:call(?SERVER, has_next_schedule).
@@ -73,11 +73,12 @@ stop() ->
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
-init([[DelayDirection, DelayBound, Bound, DepTxnsPrgm, DCs, OrigSymSch]]) ->
+init([[ConsModel, DelayDirection, DelayBound, Bound, DepTxnsPrgm, DCs, OrigSymSch]]) ->
   EventCount = length(OrigSymSch),
   DelaySequencer = list_to_atom(atom_to_list(comm_delay_sequence) ++ "_" ++ atom_to_list(DelayDirection)),
   io:format("~nDelay Sequencer: ~w", [DelaySequencer]),
   InitState = #delay_schlr_state{
+    cons_model = ConsModel,
     event_count_total = EventCount,
     orig_sch_sym_main = OrigSymSch,
     orig_sch_sym = OrigSymSch,
@@ -415,6 +416,7 @@ next_event(regular, State) ->
 get_next_and_update_state(delay, EventType,
     [{curr_event, CurrEvent}, {event_list, NewDelayed}, {delayed_list, [Delayed2]}], State) ->
 
+  ConsModel = State#delay_schlr_state.cons_model,
   CurrSch = State#delay_schlr_state.curr_sch,
   SS = State#delay_schlr_state.logical_ss,
   NewDelEventIndex = State#delay_schlr_state.delayed_event_index + 1,
@@ -422,7 +424,7 @@ get_next_and_update_state(delay, EventType,
   DelaySequencer = State#delay_schlr_state.delay_sequencer,
   NextDelDelIndex = DelaySequencer:get_next_delay_index(comm_delay_sequence_d),
 
-  IsRunnable = is_runnable(EventType, CurrEvent, CurrSch, Delayed2, SS, NewDelEventIndex, NextDelDelIndex, AllDepTxnsPrgm),
+  IsRunnable = comm_consistency:is_runnable(ConsModel, EventType, CurrEvent, CurrSch, Delayed2, SS, NewDelEventIndex, NextDelDelIndex, AllDepTxnsPrgm),
   {NewState1, NewCurrEvent} =
     case IsRunnable of
       true ->
@@ -462,6 +464,7 @@ get_next_and_update_state(delay, EventType,
 
 get_next_and_update_state(regular, EventType,
     [{curr_event, CurrEvent}, {new_orig_sch, NewOrigSch}, {new_delayed, Delayed}], State) ->
+  ConsModel = State#delay_schlr_state.cons_model,
   CurrSch = State#delay_schlr_state.curr_sch,
   SS = State#delay_schlr_state.logical_ss,
   CommPrfSch = State#delay_schlr_state.common_prfx_schl,
@@ -477,7 +480,7 @@ get_next_and_update_state(regular, EventType,
     true -> noop
   end,
 
-  IsRunnable = is_runnable(EventType, CurrEvent, CurrSch, Delayed, SS, NewCurrEventIndex, NextDelIndex, AllDepTxnsPrgm),
+  IsRunnable = comm_consistency:is_runnable(ConsModel, EventType, CurrEvent, CurrSch, Delayed, SS, NewCurrEventIndex, NextDelIndex, AllDepTxnsPrgm),
   {NewState1, NewCurrEvent} =
     case IsRunnable of
       true ->
@@ -546,46 +549,46 @@ update_ss(remote, CurrEvent, SS) ->
   NewDCSS = dict:store(EventOrigDC, NewEventCT, DCSS),
   dict:store(EventDC, NewDCSS, SS).
 
-is_runnable(local, CurrEvent, CurrSch, _Delayed, _SS, CurrEventIndex, DelIndex, AllDepTxnsPrgm) ->
-  IsDelaying = (CurrEventIndex == DelIndex),
-
-  EventDC = CurrEvent#local_event.event_dc,
-  [EventTxnId] = CurrEvent#local_event.event_txns,
-
-  {ok, EventDepTxns} = dict:find(EventTxnId, AllDepTxnsPrgm),
-
-  DepSatisfied =
-    lists:all(fun(DepT) ->
-                lists:any(fun(E) ->
-                            Type = type(E),
-                            {[ETxId], EDC} =
-                              case Type of
-                                local ->
-                                  {E#local_event.event_txns, E#local_event.event_dc};
-                                remote ->
-                                  {E#remote_event.event_txns, E#remote_event.event_dc}
-                              end,
-                            ETxId == DepT andalso EDC == EventDC
-                          end, CurrSch)
-              end, EventDepTxns),
-  not IsDelaying and DepSatisfied;
-
-is_runnable(remote, CurrEvent, _CurrSch, Delayed, SS, CurrEventIndex, DelIndex, _AllDepTxnsPrgm) ->
-
-  IsDelaying = (CurrEventIndex == DelIndex),
-
-  EventDC = CurrEvent#remote_event.event_dc,
-  {ok, DCSS} = dict:find(EventDC, SS),
-  DepSatisfied =  vectorclock:ge(DCSS, CurrEvent#remote_event.event_snapshot_time),
-
-  %%% Check if CurrEvent is replication of a delayed event
-  IsRepl =
-    lists:any(fun(E) ->
-                case type(E) of
-                  local ->
-                    CurrEvent#remote_event.event_txns == E#local_event.event_txns;
-                  _ ->
-                    false
-                end
-              end, Delayed),
-  (not IsDelaying) andalso (not IsRepl) andalso DepSatisfied.
+%%is_runnable(local, CurrEvent, CurrSch, _Delayed, _SS, CurrEventIndex, DelIndex, AllDepTxnsPrgm) ->
+%%  IsDelaying = (CurrEventIndex == DelIndex),
+%%
+%%  EventDC = CurrEvent#local_event.event_dc,
+%%  [EventTxnId] = CurrEvent#local_event.event_txns,
+%%
+%%  {ok, EventDepTxns} = dict:find(EventTxnId, AllDepTxnsPrgm),
+%%
+%%  DepSatisfied =
+%%    lists:all(fun(DepT) ->
+%%                lists:any(fun(E) ->
+%%                            Type = type(E),
+%%                            {[ETxId], EDC} =
+%%                              case Type of
+%%                                local ->
+%%                                  {E#local_event.event_txns, E#local_event.event_dc};
+%%                                remote ->
+%%                                  {E#remote_event.event_txns, E#remote_event.event_dc}
+%%                              end,
+%%                            ETxId == DepT andalso EDC == EventDC
+%%                          end, CurrSch)
+%%              end, EventDepTxns),
+%%  not IsDelaying and DepSatisfied;
+%%
+%%is_runnable(remote, CurrEvent, _CurrSch, Delayed, SS, CurrEventIndex, DelIndex, _AllDepTxnsPrgm) ->
+%%
+%%  IsDelaying = (CurrEventIndex == DelIndex),
+%%
+%%  EventDC = CurrEvent#remote_event.event_dc,
+%%  {ok, DCSS} = dict:find(EventDC, SS),
+%%  DepSatisfied =  vectorclock:ge(DCSS, CurrEvent#remote_event.event_snapshot_time),
+%%
+%%  %%% Check if CurrEvent is replication of a delayed event
+%%  IsRepl =
+%%    lists:any(fun(E) ->
+%%                case type(E) of
+%%                  local ->
+%%                    CurrEvent#remote_event.event_txns == E#local_event.event_txns;
+%%                  _ ->
+%%                    false
+%%                end
+%%              end, Delayed),
+%%  (not IsDelaying) andalso (not IsRepl) andalso DepSatisfied.
