@@ -28,8 +28,8 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
-start_link([_DelayDirection, Seed, Bound, DepTxnsPrgm, DCs, OrigSchSym]) ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [[Seed, Bound, DepTxnsPrgm, DCs, OrigSchSym]], []).
+start_link([ConsModel, _DelayDirection, Seed, Bound, DepTxnsPrgm, DCs, OrigSchSym]) ->
+  gen_server:start_link({local, ?SERVER}, ?MODULE, [[ConsModel, Seed, Bound, DepTxnsPrgm, DCs, OrigSchSym]], []).
 
 get_state() ->
   gen_server:call(?SERVER, get_state).
@@ -58,9 +58,10 @@ stop() ->
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
-init([[Seed, Bound, DepTxnsPrgm, DCs, OrigSchSym]]) ->
+init([[ConsModel, Seed, Bound, DepTxnsPrgm, DCs, OrigSchSym]]) ->
   EventCount = length(OrigSchSym),
   InitState = #rand_schlr_state{
+    cons_model = ConsModel,
     event_count_total = EventCount,
     orig_sch_sym = OrigSchSym,
     dcs = DCs,
@@ -108,6 +109,7 @@ handle_call(setup_next_schedule, _From, State)->
   {reply, ok, InitState};
 
 handle_call(next_event, _From, State) -> %% event | none
+  ConsModel = State#rand_schlr_state.cons_model,
   CurrSch = State#rand_schlr_state.curr_sch,
   SS = State#rand_schlr_state.logical_ss,
   Remained = State#rand_schlr_state.remained,
@@ -132,7 +134,7 @@ handle_call(next_event, _From, State) -> %% event | none
   Remained1 = update_event_data(Event, Remained, SS),
   Event1 = lists:nth(Indx, Remained1),
   EventType = comm_utilities:type(Event),
-  IsBlocked = is_blocked(EventType, Event1, SS, CurrSch, Remained1, AllDepTxnsPrgm),
+  IsBlocked = comm_consistency:is_blocked(ConsModel, EventType, Event1, SS, CurrSch, Remained1, AllDepTxnsPrgm),
   {NextEvent, NewState} =
     case IsBlocked of
       false ->
@@ -145,6 +147,7 @@ handle_call(next_event, _From, State) -> %% event | none
           logical_ss = NewSS},
         {Event1, State1};
       true ->
+        ct:print("B: ~w~nlength of remained: ~w", [IsBlocked, length(Remained1)]),
         State1 = State#rand_schlr_state{remained = Remained1},
         {none, State1}
     end,
@@ -194,69 +197,69 @@ update_ss(remote, Event, SS) ->
   NewDCSS = dict:store(EventOrigDC, EventCT, DCSS),
   dict:store(EventDC, NewDCSS, SS).
 
-is_blocked(local, Event, _SS, _CurrSch, Remained, AllDepTxnsPrgm) ->
-  EventDC = Event#local_event.event_dc,
-  [EventTxnId] = Event#local_event.event_txns,
-
-  {ok, EventDepTxns} = dict:find(EventTxnId, AllDepTxnsPrgm),
-%%  io:format("~n==========EventDepTxns: ~w~n===========", [EventDepTxns]),
-  Res =
-  lists:any(fun(DepT) ->
-              InnerRes =
-              lists:any(fun(RemEv) ->
-                          Type = comm_utilities:type(RemEv),
-%%                          io:format("~n======RemEvType: ~w ~n======", [Type]),
-                          {[RemEvTxnId], RemEvDC} =
-                            case Type of
-                              local -> {RemEv#local_event.event_txns, RemEv#local_event.event_dc};
-                              remote -> {RemEv#remote_event.event_txns, RemEv#remote_event.event_dc}
-%%                              ok -> io:format("~n======RemEv: ~w ~n======", [RemEv])
-                            end,
-%%                          io:format("~n ======== DepT id is remained: ~w ; DepT DC is the same: ~w =========", [RemEvTxnId == DepT, RemEvDC == EventDC]),
-%%                          io:format("~n ========DepT: ~w ========~n Event: ~w ===~n RemEvent: ~w ~n=========", [DepT, Event, RemEv]),
-                          RemEvTxnId == DepT andalso RemEvDC == EventDC
-                        end, Remained),
-%%              io:format("~n ======== Inner is blocked: ~w =========", [InnerRes]),
-              InnerRes
-            end, EventDepTxns),
-%%  io:format("~n ======== local is blocked: ~w =========", [Res]),
-  Res;
-
-%%% Returns true if Event is
-%%% either the replication of an event which has not been replayed
-%%% or its dependency is not satisfied
-is_blocked(remote, Event, SS, CurrSch, Remained, _AllDepTxnsPrgm) ->
-  %%% Check if it is the replication of an unscheduled local event
-  Possible =
-    not lists:any(fun(E) ->
-                    case comm_utilities:type(E) of
-                      local ->
-                        Event#remote_event.event_txns == E#local_event.event_txns;
-                      _ ->
-                        false
-                    end end, Remained),
-
-  %%% Sanity check
-  Possible = lists:any(fun(E) ->
-                          case comm_utilities:type(E) of
-                            local ->
-                              Event#remote_event.event_txns == E#local_event.event_txns;
-                            _ ->
-                              false
-                          end end, CurrSch),
-
-  %%% If scheduling Event is possible, check if its dependency is satisfied
-  case Possible of
-    true ->
-      EventDC = Event#remote_event.event_dc,
-      {ok, DC_SS} = dict:find(EventDC, SS),
-      not vectorclock:ge(DC_SS, Event#remote_event.event_snapshot_time);
-    false ->
-      true
-  end.
+%%is_blocked(local, Event, _SS, _CurrSch, Remained, AllDepTxnsPrgm) ->
+%%  EventDC = Event#local_event.event_dc,
+%%  [EventTxnId] = Event#local_event.event_txns,
+%%
+%%  {ok, EventDepTxns} = dict:find(EventTxnId, AllDepTxnsPrgm),
+%%%%  io:format("~n==========EventDepTxns: ~w~n===========", [EventDepTxns]),
+%%  Res =
+%%  lists:any(fun(DepT) ->
+%%              InnerRes =
+%%              lists:any(fun(RemEv) ->
+%%                          Type = comm_utilities:type(RemEv),
+%%%%                          io:format("~n======RemEvType: ~w ~n======", [Type]),
+%%                          {[RemEvTxnId], RemEvDC} =
+%%                            case Type of
+%%                              local -> {RemEv#local_event.event_txns, RemEv#local_event.event_dc};
+%%                              remote -> {RemEv#remote_event.event_txns, RemEv#remote_event.event_dc}
+%%%%                              ok -> io:format("~n======RemEv: ~w ~n======", [RemEv])
+%%                            end,
+%%%%                          io:format("~n ======== DepT id is remained: ~w ; DepT DC is the same: ~w =========", [RemEvTxnId == DepT, RemEvDC == EventDC]),
+%%%%                          io:format("~n ========DepT: ~w ========~n Event: ~w ===~n RemEvent: ~w ~n=========", [DepT, Event, RemEv]),
+%%                          RemEvTxnId == DepT andalso RemEvDC == EventDC
+%%                        end, Remained),
+%%%%              io:format("~n ======== Inner is blocked: ~w =========", [InnerRes]),
+%%              InnerRes
+%%            end, EventDepTxns),
+%%%%  io:format("~n ======== local is blocked: ~w =========", [Res]),
+%%  Res;
+%%
+%%%%% Returns true if Event is
+%%%%% either the replication of an event which has not been replayed
+%%%%% or its dependency is not satisfied
+%%is_blocked(remote, Event, SS, CurrSch, Remained, _AllDepTxnsPrgm) ->
+%%  %%% Check if it is the replication of an unscheduled local event
+%%  Possible =
+%%    not lists:any(fun(E) ->
+%%                    case comm_utilities:type(E) of
+%%                      local ->
+%%                        Event#remote_event.event_txns == E#local_event.event_txns;
+%%                      _ ->
+%%                        false
+%%                    end end, Remained),
+%%
+%%  %%% Sanity check
+%%  Possible = lists:any(fun(E) ->
+%%                          case comm_utilities:type(E) of
+%%                            local ->
+%%                              Event#remote_event.event_txns == E#local_event.event_txns;
+%%                            _ ->
+%%                              false
+%%                          end end, CurrSch),
+%%
+%%  %%% If scheduling Event is possible, check if its dependency is satisfied
+%%  case Possible of
+%%    true ->
+%%      EventDC = Event#remote_event.event_dc,
+%%      {ok, DC_SS} = dict:find(EventDC, SS),
+%%      not vectorclock:ge(DC_SS, Event#remote_event.event_snapshot_time);
+%%    false ->
+%%      true
+%%  end.
 
 %%% Event is the scheduled event;
-%%% its CT is updated using lamport logical clocks;
+%%% its CT is updated using vector logical clocks;
 %%% the update must be applied both local event and its corresponding remote event
 %%% This function is called only for local events
 update_event_data(Event, EventsList, SS) ->
