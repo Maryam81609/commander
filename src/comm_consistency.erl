@@ -193,7 +193,7 @@ is_blocked(sr, local, Event, SS, _CurrSch, Remained, AllDepTxnsPrgm) ->
     {ok, DCSS} = dict:find(EventDC, SS),
     SRSatisfied = vectorclock:eq(DCSS, SRDepClock),
 
-    SRSatisfied and Res;
+    not SRSatisfied or Res;
 
 is_blocked(sr, remote, Event, SS, CurrSch, Remained, _AllDepTxnsPrgm) ->
     %%% Check if it is the replication of an unscheduled local event
