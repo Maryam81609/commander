@@ -118,10 +118,10 @@ handle_call(curr_state, _From, State) ->
 
 handle_call(has_next_schedule, _From, State) ->
   SchCnt = State#delay_schlr_state.schedule_count,
-  Bound = State#delay_schlr_state.bound,
-  CommonPrfxSchlCnt = State#delay_schlr_state.common_prfx_schl_cnt,
-  CommonPrfxBound = State#delay_schlr_state.common_prfx_bound,
-  DelayedMain = State#delay_schlr_state.delayed_main,
+  _Bound = State#delay_schlr_state.bound,
+  _CommonPrfxSchlCnt = State#delay_schlr_state.common_prfx_schl_cnt,
+  _CommonPrfxBound = State#delay_schlr_state.common_prfx_bound,
+  _DelayedMain = State#delay_schlr_state.delayed_main,
   Delayer = State#delay_schlr_state.delayer,
   DelaySequencer = State#delay_schlr_state.delay_sequencer,
 
@@ -131,15 +131,20 @@ handle_call(has_next_schedule, _From, State) ->
         case State#delay_schlr_state.delay_bound == 0 of
           true -> State#delay_schlr_state.schedule_count < 1;
           false ->
-            ?DEBUG_LOG(io_lib:format("scheduler::has_next_schedule::SchCnt: ~p---Bound: ~p---DelaySequencer: ~p",
-              [SchCnt, Bound, DelaySequencer])),
-            length(DelayedMain) > 1
-            orelse (SchCnt < (3 * Bound) andalso DelaySequencer:has_next(comm_delay_sequence_r))
+%%            ?DEBUG_LOG(io_lib:format(
+%%              "scheduler::has_next_schedule::SchCnt: ~p---Bound: ~p---DelaySequencer: ~p",
+%%              [SchCnt, Bound, DelaySequencer])),
+
+            Delayed = State#delay_schlr_state.delayed,
+            %%length(DelayedMain) > 1
+            length(Delayed) > 1
+            orelse DelaySequencer:has_next(comm_delay_sequence_r) %% (SchCnt < (1000 * Bound) andalso )
             orelse SchCnt == 0
         end;
       delay ->
-        (CommonPrfxSchlCnt < CommonPrfxBound andalso DelaySequencer:has_next(comm_delay_sequence_d))
-          orelse (SchCnt < Bound andalso DelaySequencer:has_next(comm_delay_sequence_r))
+%%        (CommonPrfxSchlCnt < CommonPrfxBound andalso DelaySequencer:has_next(comm_delay_sequence_d))
+        DelaySequencer:has_next(comm_delay_sequence_d)
+          orelse DelaySequencer:has_next(comm_delay_sequence_r) %% (SchCnt < 1000 * Bound andalso )
     end,
   {reply, HasNextSch, State};
 
