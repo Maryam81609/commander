@@ -60,6 +60,7 @@ init([DelayBound, MaxDelayIndex]) ->
       count = 0},
   {ok, InitState}.
 
+%%% has_next_delay_sequence
 handle_call(has_next, _From, State) ->
   DelayBound = State#state.delay_bound,
   MaxDelayIndex = State#state.max_delay_indx,
@@ -98,7 +99,7 @@ handle_call(next, _From, State) ->
             {NewL2, _} = lists:mapfoldl(fun(_E, I) ->
                                           %% Sanity check
                                           true = I =< length(L2),
-                                          {min(L1NewLast + I, 10), I+1}
+                                          {min(L1NewLast + I, MaxDelayIndex), I+1}
                                         end, 1, L2),
             NewL1 ++ NewL2
         end
