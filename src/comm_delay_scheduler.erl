@@ -121,7 +121,7 @@ handle_call(has_next_schedule, _From, State) ->
   _Bound = State#delay_schlr_state.bound,
   _CommonPrfxSchlCnt = State#delay_schlr_state.common_prfx_schl_cnt,
   _CommonPrfxBound = State#delay_schlr_state.common_prfx_bound,
-  _DelayedMain = State#delay_schlr_state.delayed_main,
+  DelayedMain = State#delay_schlr_state.delayed_main,
   Delayer = State#delay_schlr_state.delayer,
   DelaySequencer = State#delay_schlr_state.delay_sequencer,
 
@@ -141,7 +141,7 @@ handle_call(has_next_schedule, _From, State) ->
 
             ok = comm_utilities:write_to_file("sequences",io_lib:format("~nhas_next_sch(reg)::len(Delayed)ge1: ~p::has_next_reg: ~p::SchCnt0: ~p", [length(Delayed) > 1, HasNextReg, SchCnt == 0]), append),
 
-            length(Delayed) > 1
+            length(DelayedMain) > 1
             orelse HasNextReg %%DelaySequencer:has_next(comm_delay_sequence_r) %% (SchCnt < (1000 * Bound) andalso )
             orelse SchCnt == 0
         end;
