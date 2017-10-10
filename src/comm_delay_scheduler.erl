@@ -146,7 +146,6 @@ handle_call(has_next_schedule, _From, State) ->
             orelse SchCnt == 0
         end;
       delay ->
-%%        (CommonPrfxSchlCnt < CommonPrfxBound andalso DelaySequencer:has_next(comm_delay_sequence_d))
         HasNextDel = DelaySequencer:has_next(comm_delay_sequence_d),
         HasNextReg = DelaySequencer:has_next(comm_delay_sequence_r),
 
@@ -203,12 +202,12 @@ handle_call(setup_next_schedule, _From, State) ->
             regular
         end
     end,
-  ok = comm_utilities:write_to_file("sequences", io_lib:format("~nDelayer: ~p -- NewDelayer: ~p", [Delayer, NewDelayer]), append),
+  ok = comm_utilities:write_to_file("sequences", io_lib:format("~nSchCnt: ~p::Delayer: ~p::NewDelayer: ~p", [SchCnt, Delayer, NewDelayer]), append),
   NewState =
     case NewDelayer of
       regular ->
         CurrDelSeq = DelaySequencer:next(comm_delay_sequence_r),
-        ok = comm_utilities:write_to_file("sequences", io_lib:format(" -----reg: ~p", [CurrDelSeq]), append),
+        ok = comm_utilities:write_to_file("sequences", io_lib:format("-----reg: ~p", [CurrDelSeq]), append),
         State#delay_schlr_state{
           orig_sch_sym = OrigSchMain,
           orig_event_index = 0,
