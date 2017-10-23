@@ -135,7 +135,7 @@ handle_call(has_next_schedule, _From, State) ->
 %%              "scheduler::has_next_schedule::SchCnt: ~p---Bound: ~p---DelaySequencer: ~p",
 %%              [SchCnt, Bound, DelaySequencer])),
 
-            Delayed = State#delay_schlr_state.delayed,
+%%            Delayed = State#delay_schlr_state.delayed,
             %%length(DelayedMain) > 1
             HasNextReg = DelaySequencer:has_next(comm_delay_sequence_r),
 
