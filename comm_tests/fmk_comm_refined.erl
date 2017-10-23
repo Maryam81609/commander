@@ -126,22 +126,12 @@ main_test([Node1, Node2, Node3]) ->
     dc3_txns(Node3, {Node1, Node2}, [?P1ID, ?P2ID, ?PHRM2ID, ?STFF2ID, ?PRSC2ID]).
 
 dc1_txns(Node, {Node2, Node3}, [PId2]) ->
-%%    comm_test:event(?MODULE, [?CRT_PTNT_EV, Node, [{Node, 1}, {Node2, 0}, {Node3, 0}],
-%%        [3, "name3", "p-address3"]]),
     comm_test:event(?MODULE, [?CRT_PTNT_EV, Node, [{Node, 1}, {Node2, 0}, {Node3, 0}],
-        [PId2, "name2", "p-address2"]]).%,
-%%    create_patients_n(20, Node, [{Node, 1}, {Node2, 0}, {Node3, 0}]).
+        [PId2, "name2", "p-address2"]]).
 
-dc2_txns(Node, {Node1, Node3}, [PId1, PharmId, StaffId, PrescId]) ->
+dc2_txns(Node, {Node1, Node3}, [PId1, _PharmId, _StaffId, _PrescId]) ->
     comm_test:event(?MODULE, [?CRT_PTNT_EV, Node, [{Node, 1}, {Node1, 0}, {Node3, 0}],
-        [PId1, "name1", "p-address1"]]).%,
-%%    comm_test:event(?MODULE, [?CRT_PHRM_EV, Node, [{Node, 1}, {Node1, 0}, {Node3, 0}],
-%%        [PharmId, "pharmacy1", "ph-address1"]]),
-%%    comm_test:event(?MODULE, [?CRT_STFF_EV, Node, [{Node, 1}, {Node1, 0}, {Node3, 0}],
-%%        [StaffId, "staff1", "st-address1", "st1-specialty"]]),
-%%    comm_test:event(?MODULE, [?CRT_PRSC_EV, Node, [{Node, 2}, {Node1, 0}, {Node3, 0}],
-%%        [PrescId, PId1, StaffId, PharmId, "06-17-17", ["drugs1", "drugs2"]]]),
-%%    create_pharmacy_n(20, Node, [{Node, 2}, {Node1, 0}, {Node3, 0}]).
+        [PId1, "name1", "p-address1"]]).
 
 dc3_txns(Node, {Node1, Node2}, [_PId1, PId2, Pharmc2Id, Staff2Id, Prsc2Id]) ->
     comm_test:event(?MODULE, [?UPD_PTNT_EV, Node, [{Node, 1}, {Node1, 0}, {Node2, 0}],
@@ -151,27 +141,4 @@ dc3_txns(Node, {Node1, Node2}, [_PId1, PId2, Pharmc2Id, Staff2Id, Prsc2Id]) ->
     comm_test:event(?MODULE, [?CRT_STFF_EV, Node, [{Node, 1}, {Node1, 0}, {Node2, 0}],
         [Staff2Id, "staff2", "st-address2", "st2-specialty"]]),
     comm_test:event(?MODULE, [?CRT_PRSC_EV, Node, [{Node, 2}, {Node1, 0}, {Node2, 0}],
-        [Prsc2Id, PId2, Staff2Id, Pharmc2Id, "07-17-17", ["drugs3"]]]).%,
-%%    create_staff_n(20, Node, [{Node, 2}, {Node1, 0}, {Node2, 0}]).
-
-%%create_staff_n(0, _Node, _Dep) ->
-%%    noop;
-%%create_staff_n(N, Node, Dep) ->
-%%    comm_test:event(?MODULE, [?CRT_STFF_EV, Node, Dep,
-%%        [N+6, "staff" ++ integer_to_list(N+6), "st-address" ++ integer_to_list(N+6), "st-specialty" ++ integer_to_list(N+6)]]),
-%%    create_staff_n(N-1, Node, Dep).
-%%
-%%create_pharmacy_n(0, _Node, _Dep) ->
-%%    noop;
-%%create_pharmacy_n(N, Node, Dep) ->
-%%    comm_test:event(?MODULE, [?CRT_PHRM_EV, Node, Dep,
-%%        [N+4, "pharmacy" ++ integer_to_list(N+4), "ph-address" ++ integer_to_list(N+4)]]),
-%%    create_pharmacy_n(N-1, Node, Dep).
-%%
-%%create_patients_n(0, _Node, _Dep) ->
-%%    noop;
-%%create_patients_n(N, Node, Dep) ->
-%%    comm_test:event(?MODULE, [?CRT_PTNT_EV, Node, Dep,
-%%        [N+3, "name" ++ integer_to_list(N+3), "p-address" ++ integer_to_list(N+3)]]),
-%%    create_patients_n(N-1, Node, Dep).
-
+        [Prsc2Id, PId2, Staff2Id, Pharmc2Id, "07-17-17", ["drugs3"]]]).
